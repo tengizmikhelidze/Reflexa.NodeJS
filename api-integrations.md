@@ -2,14 +2,28 @@
 
 Base URL: `http://localhost:3000/api`
 
-All requests and responses use `application/json`.  
+All requests and responses use `application/json`.
 All responses follow a consistent envelope shape (see [Response Shape](#response-shape)).
+
+---
+
+## Table of Contents
+
+- [Authentication](#authentication)
+- [Response Shape](#response-shape)
+- [Auth Endpoints](#auth-endpoints)
+- [Organization Endpoints](#organization-endpoints)
+- [Shared Types](#shared-types)
+- [Shared Organization Types](#shared-organization-types)
+- [Integration Guide](#integration-guide)
+- [Health Check](#health-check)
+- [Error Reference](#error-reference)
 
 ---
 
 ## Authentication
 
-Protected endpoints require a JWT access token in the `Authorization` header:
+Protected endpoints (marked 🔒) require a JWT access token in the `Authorization` header:
 
 ```
 Authorization: Bearer <accessToken>
@@ -89,6 +103,7 @@ Create a new user account. Returns the created user and a message to verify emai
 ```
 
 **Error cases**
+
 | Status | Message |
 |--------|---------|
 | 400 | Validation failed (field errors in `errors` object) |
@@ -122,12 +137,15 @@ Authenticate with email and password. Issues a JWT access + refresh token pair.
 ```
 
 **Error cases**
+
 | Status | Message |
 |--------|---------|
 | 400 | Validation failed |
 | 401 | "Invalid email or password." |
-| 403 | "Email address has not been verified. Please check your inbox." |
 | 403 | "Your account has been deactivated. Please contact support." |
+| 403 | "Email address has not been verified. Please check your inbox." |
+
+> Note: `is_active` is checked before `email_verified`. A deactivated account sees the deactivation message, not the verification prompt.
 
 ---
 
