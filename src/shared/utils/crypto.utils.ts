@@ -18,3 +18,15 @@ export function generateSecureToken(bytes = 32): string {
     return crypto.randomBytes(bytes).toString('hex');
 }
 
+/**
+ * Produces a deterministic SHA-256 hex hash of a string value.
+ *
+ * Used to hash refresh tokens before storing in app.refresh_tokens.token_hash.
+ * SHA-256 is correct here — unlike bcrypt, it is deterministic, which allows
+ * DB lookup by hash (WHERE token_hash = @hash).
+ * bcrypt cannot be used for this because its random salt makes each hash unique.
+ */
+export function hashToken(value: string): string {
+    return crypto.createHash('sha256').update(value).digest('hex');
+}
+
