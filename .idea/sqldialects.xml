@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="SqlDialectMappings">
+    <file url="file://$PROJECT_DIR$/database/queries/1.create_database.sql" dialect="GenericSQL" />
+    <file url="file://$PROJECT_DIR$/database/queries/10.seed_esential_roles_and_perms.sql" dialect="GenericSQL" />
+    <file url="file://$PROJECT_DIR$/database/queries/2.create_schema_objects.sql" dialect="GenericSQL" />
+    <file url="file://$PROJECT_DIR$/database/queries/3.users_and_auth.sql" dialect="GenericSQL" />
+    <file url="file://$PROJECT_DIR$/database/queries/4.org_roles_teams_visibility.sql" dialect="GenericSQL" />
+    <file url="file://$PROJECT_DIR$/database/queries/5.devices.sql" dialect="GenericSQL" />
+    <file url="file://$PROJECT_DIR$/database/queries/6.presets_templates.sql" dialect="GenericSQL" />
+    <file url="file://$PROJECT_DIR$/database/queries/7.sessions_events.sql" dialect="GenericSQL" />
+    <file url="file://$PROJECT_DIR$/database/queries/8.audit_sync_tracking.sql" dialect="GenericSQL" />
+    <file url="file://$PROJECT_DIR$/database/queries/9.indexes.sql" dialect="GenericSQL" />
+  </component>
+</project>
