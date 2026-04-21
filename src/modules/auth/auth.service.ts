@@ -117,7 +117,7 @@ export class AuthService {
             );
         }
 
-        const tokens = await this.issueTokenPair(user.id, {
+        const tokens = await this.issueTokenPair({
             userId: user.id,
             email: user.email,
             emailVerified: user.email_verified,
@@ -136,22 +136,29 @@ export class AuthService {
         const record = await this.authRepo.findEmailVerificationToken(token);
 
         if (!record) {
+            // 404: token string does not exist at all
             throw new NotFoundError('Verification token is invalid.');
         }
 
         if (record.used_at !== null) {
-            throw new UnauthorizedError('Verification token has already been used.');
+            // 409 Conflict: token exists but has already been consumed — not an auth failure
+            throw new ConflictError('Verification token has already been used.');
         }
 
         if (new Date() > record.expires_at) {
-            throw new UnauthorizedError(
+            // 403 Forbidden: token is genuine but no longer valid — tell client to request a new one
+            throw new ForbiddenError(
                 'Verification token has expired. Please request a new one.'
             );
         }
 
-        // Mark token used and mark user verified atomically (sequential, same connection pool)
-        await this.authRepo.markEmailVerificationTokenUsed(record.id);
+        // Order matters for crash safety:
+        // Mark user verified FIRST, then mark token used.
+        // If we crash after user verified but before token used → token can still be retried → safe.
+        // If we crash after token used but before user verified → user is stuck unverified
+        //   with a consumed token and cannot recover without support → dangerous.
         await this.usersRepo.markEmailVerified(record.user_id);
+        await this.authRepo.markEmailVerificationTokenUsed(record.id);
     }
 
     // ── Refresh Token ─────────────────────────────────────────────────────────
@@ -195,6 +202,13 @@ export class AuthService {
             );
         }
 
+        // Defence-in-depth: also check DB-level expiry.
+        // The JWT exp claim is the primary guard, but DB expiry catches clock-skew edge cases.
+        if (new Date() > storedToken.expires_at) {
+            await this.authRepo.revokeRefreshToken(storedToken.id);
+            throw new UnauthorizedError('Refresh token has expired. Please log in again.');
+        }
+
         // Fetch user to get current state (they may have been deactivated since token was issued)
         const user = await this.usersRepo.findById(payload.sub);
         if (!user || !user.is_active) {
@@ -204,7 +218,7 @@ export class AuthService {
         // Step 4: rotate — revoke old, issue new
         await this.authRepo.revokeRefreshToken(storedToken.id);
 
-        const tokens = await this.issueTokenPair(user.id, {
+        const tokens = await this.issueTokenPair({
             userId: user.id,
             email: user.email,
             emailVerified: user.email_verified,
@@ -245,6 +259,13 @@ export class AuthService {
             throw new NotFoundError('User not found.');
         }
 
+        // Re-check active status — the user may have been deactivated after their token was issued.
+        // findById already excludes soft-deleted rows (deleted_at IS NULL), so a missing row
+        // also covers the deleted case.
+        if (!user.is_active) {
+            throw new ForbiddenError('Your account has been deactivated. Please contact support.');
+        }
+
         return mapUserToSafeUser(user);
     }
 
@@ -254,10 +275,7 @@ export class AuthService {
      * Signs an access + refresh token pair, hashes the refresh token,
      * and persists the hash to the DB.
      */
-    private async issueTokenPair(
-        _userId: string,
-        authUser: AuthUser
-    ): Promise<TokenPair> {
+    private async issueTokenPair(authUser: AuthUser): Promise<TokenPair> {
         const accessToken = signAccessToken(authUser);
         const refreshToken = signRefreshToken(authUser);
 

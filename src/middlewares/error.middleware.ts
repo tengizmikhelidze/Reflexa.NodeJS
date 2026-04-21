@@ -1,6 +1,6 @@
 import { NextFunction, Request, Response } from 'express';
-import { AppError } from '../shared/errors/app-error';
-import { ValidationError } from '../shared/errors/http-errors';
+import { AppError } from '../shared/errors/app-error.js';
+import { ValidationError } from '../shared/errors/http-errors.js';
 
 export function errorMiddleware(
     error: unknown,

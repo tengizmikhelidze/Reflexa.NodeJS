@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { ZodSchema, ZodError } from 'zod';
-import { ValidationError } from '../errors/http-errors';
+import { ValidationError } from '../errors/http-errors.js';
 
 /**
  * Returns an Express middleware that validates req.body against the given Zod schema.

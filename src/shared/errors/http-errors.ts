@@ -1,4 +1,4 @@
-import { AppError } from './app-error';
+import { AppError } from './app-error.js';
 
 /**
  * 400 — Request body or query params failed validation.

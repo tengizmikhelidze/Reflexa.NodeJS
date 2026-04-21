@@ -1,5 +1,5 @@
 import sql from 'mssql';
-import { UserRow } from './users.types';
+import { UserRow } from './users.types.js';
 
 export type { UserRow };
 

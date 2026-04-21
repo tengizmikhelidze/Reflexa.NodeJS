@@ -30,7 +30,7 @@ export interface CreateEmailVerificationTokenInput {
 
 export interface CreateRefreshTokenInput {
     userId: string;
-    tokenHash: string;   // bcrypt hash of the raw refresh token
+    tokenHash: string;   // SHA-256 hex hash of the raw refresh token
     expiresAt: Date;
 }
 
