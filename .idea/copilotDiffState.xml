@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="CopilotDiffPersistence">
+    <option name="pendingDiffs">
+      <map>
+        <entry key="$PROJECT_DIR$/src/shared/utils/crypto.utils.ts">
+          <value>
+            <PendingDiffInfo>
+              <option name="filePath" value="$PROJECT_DIR$/src/shared/utils/crypto.utils.ts" />
+              <option name="updatedContent" value="import crypto from 'crypto';&#10;&#10;/**&#10; * Generates a cryptographically secure random token.&#10; *&#10; * Strategy for email verification tokens:&#10; * - 32 random bytes → 64-character hex string.&#10; * - Stored as plain text in app.email_verification_tokens.token (NVARCHAR 255).&#10; * - The token itself is random enough (256 bits of entropy) that it does not&#10; *   need to be hashed — unlike refresh tokens which are JWTs and need&#10; *   hash-based revocation checks.&#10; * - Expires after EMAIL_VERIFICATION_TOKEN_EXPIRES_HOURS hours (default 24).&#10; * - Marked used_at when consumed; expired or used tokens are rejected.&#10; *&#10; * @param bytes Number of random bytes (default 32 → 64-char hex output)&#10; */&#10;export function generateSecureToken(bytes = 32): string {&#10;    return crypto.randomBytes(bytes).toString('hex');&#10;}&#10;" />
+            </PendingDiffInfo>
+          </value>
+        </entry>
+        <entry key="$PROJECT_DIR$/src/shared/utils/password.utils.ts">
+          <value>
+            <PendingDiffInfo>
+              <option name="filePath" value="$PROJECT_DIR$/src/shared/utils/password.utils.ts" />
+              <option name="updatedContent" value="import bcrypt from 'bcrypt';&#10;import { env } from '../../config/env.js';&#10;&#10;/**&#10; * Hashes a plain-text password using bcrypt.&#10; * Salt rounds come from env (default 12 — see BCRYPT_SALT_ROUNDS).&#10; */&#10;export async function hashPassword(plainPassword: string): Promise&lt;string&gt; {&#10;    return bcrypt.hash(plainPassword, env.bcryptSaltRounds);&#10;}&#10;&#10;/**&#10; * Compares a plain-text password against a stored bcrypt hash.&#10; * Returns true if they match, false otherwise.&#10; * Uses bcrypt.compare which is timing-safe.&#10; */&#10;export async function comparePassword(&#10;    plainPassword: string,&#10;    hash: string&#10;): Promise&lt;boolean&gt; {&#10;    return bcrypt.compare(plainPassword, hash);&#10;}&#10;" />
+            </PendingDiffInfo>
+          </value>
+        </entry>
+        <entry key="$PROJECT_DIR$/src/shared/utils/token.utils.ts">
+          <value>
+            <PendingDiffInfo>
+              <option name="filePath" value="$PROJECT_DIR$/src/shared/utils/token.utils.ts" />
+              <option name="updatedContent" value="import jwt from 'jsonwebtoken';&#10;import { env } from '../../config/env.js';&#10;import { AuthUser } from '../types/auth-user.types.js';&#10;&#10;// ─── JWT Payload ──────────────────────────────────────────────────────────────&#10;&#10;/**&#10; * The shape we embed inside both access and refresh tokens.&#10; * Kept minimal — only what is needed to identify and authorise the user.&#10; * The full user record is fetched from the DB when needed (e.g. GET /me).&#10; */&#10;export interface JwtPayload {&#10;    sub: string;           // userId (standard JWT &quot;subject&quot; claim)&#10;    email: string;&#10;    emailVerified: boolean;&#10;    isSuperAdmin: boolean;&#10;}&#10;&#10;// ─── Access Token ─────────────────────────────────────────────────────────────&#10;&#10;/**&#10; * Signs a short-lived JWT access token.&#10; *&#10; * Strategy:&#10; * - Short lifetime (default 15 m) — limits damage if a token is stolen.&#10; * - Stateless — no DB lookup required to validate.&#10; * - Carries enough claims for middleware to authorise most requests&#10; *   without an extra DB round-trip.&#10; */&#10;export function signAccessToken(user: AuthUser): string {&#10;    const payload: JwtPayload = {&#10;        sub: user.userId,&#10;        email: user.email,&#10;        emailVerified: user.emailVerified,&#10;        isSuperAdmin: user.isSuperAdmin,&#10;    };&#10;&#10;    return jwt.sign(payload, env.jwtAccessSecret, {&#10;        expiresIn: env.jwtAccessExpiresIn as jwt.SignOptions['expiresIn'],&#10;    });&#10;}&#10;&#10;/**&#10; * Verifies a JWT access token and returns the decoded payload.&#10; * Throws a JsonWebTokenError / TokenExpiredError on failure —&#10; * callers (auth middleware) should catch and convert to UnauthorizedError.&#10; */&#10;export function verifyAccessToken(token: string): JwtPayload {&#10;    return jwt.verify(token, env.jwtAccessSecret) as JwtPayload;&#10;}&#10;&#10;// ─── Refresh Token ────────────────────────────────────────────────────────────&#10;&#10;/**&#10; * Signs a long-lived JWT refresh token.&#10; *&#10; * Strategy:&#10; * - Longer lifetime (default 7 d) — used only to obtain a new access token.&#10; * - A SHA-256 hash of this token is stored in app.refresh_tokens.&#10; * - On use: verify the JWT signature first (cheap), then look up the hash&#10; *   in the DB (confirms it hasn't been revoked).&#10; * - Rotated on every use: old row revoked, new token issued.&#10; * - If a revoked token is presented, all tokens for that user are revoked&#10; *   (reuse-attack detection — implement in service layer).&#10; */&#10;export function signRefreshToken(user: AuthUser): string {&#10;    const payload: JwtPayload = {&#10;        sub: user.userId,&#10;        email: user.email,&#10;        emailVerified: user.emailVerified,&#10;        isSuperAdmin: user.isSuperAdmin,&#10;    };&#10;&#10;    return jwt.sign(payload, env.jwtRefreshSecret, {&#10;        expiresIn: env.jwtRefreshExpiresIn as jwt.SignOptions['expiresIn'],&#10;    });&#10;}&#10;&#10;/**&#10; * Verifies a JWT refresh token and returns the decoded payload.&#10; * Throws on invalid or expired tokens.&#10; */&#10;export function verifyRefreshToken(token: string): JwtPayload {&#10;    return jwt.verify(token, env.jwtRefreshSecret) as JwtPayload;&#10;}&#10;&#10;// ─── Helpers ──────────────────────────────────────────────────────────────────&#10;&#10;/**&#10; * Extracts the expiry Date from a signed JWT without re-verifying the signature.&#10; * Used to set expires_at when storing a refresh token in the DB.&#10; */&#10;export function getTokenExpiry(token: string): Date {&#10;    const decoded = jwt.decode(token) as { exp?: number } | null;&#10;    if (!decoded?.exp) {&#10;        throw new Error('Token has no expiry claim');&#10;    }&#10;    return new Date(decoded.exp * 1000);&#10;}&#10;" />
+            </PendingDiffInfo>
+          </value>
+        </entry>
+      </map>
+    </option>
+  </component>
+</project>
