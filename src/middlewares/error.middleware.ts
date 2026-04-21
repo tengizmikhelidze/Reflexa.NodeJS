@@ -1,4 +1,6 @@
 import { NextFunction, Request, Response } from 'express';
+import { AppError } from '../shared/errors/app-error';
+import { ValidationError } from '../shared/errors/http-errors';
 
 export function errorMiddleware(
     error: unknown,
@@ -6,15 +8,27 @@ export function errorMiddleware(
     res: Response,
     _next: NextFunction
 ): void {
-    console.error(error);
+    // Operational errors: known, typed, user-facing
+    if (error instanceof AppError) {
+        // ValidationError may carry field-level detail
+        if (error instanceof ValidationError && error.details) {
+            res.status(error.statusCode).json({
+                success: false,
+                message: error.message,
+                errors: error.details
+            });
+            return;
+        }
 
-    if (error instanceof Error) {
-        res.status(500).json({
+        res.status(error.statusCode).json({
             success: false,
             message: error.message
         });
         return;
     }
+
+    // Unexpected errors: log the full stack, return generic message
+    console.error('[Unhandled Error]', error);
 
     res.status(500).json({
         success: false,
