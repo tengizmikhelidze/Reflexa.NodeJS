@@ -1,9 +1,8 @@
-import express, { Express } from 'express';
+import express, { Express, Router } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
-import apiRouter from './routes/index.js';
-import {errorMiddleware} from "./middlewares/error.middleware";
+import { errorMiddleware } from './middlewares/error.middleware.js';
 
 const app: Express = express();
 
@@ -12,7 +11,10 @@ app.use(cors());
 app.use(morgan('dev'));
 app.use(express.json());
 
-app.use('/api', apiRouter);
-app.use(errorMiddleware);
+// Routes are mounted after async bootstrap (see server.ts)
+export function mountRouter(router: Router): void {
+    app.use('/api', router);
+    app.use(errorMiddleware);
+}
 
 export default app;
