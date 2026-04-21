@@ -21,5 +21,15 @@ export const env = {
     dbPassword: getEnv('DB_PASSWORD'),
     dbEncrypt: getEnv('DB_ENCRYPT', 'true') === 'true',
     dbTrustServerCertificate:
-        getEnv('DB_TRUST_SERVER_CERTIFICATE', 'true') === 'true'
+        getEnv('DB_TRUST_SERVER_CERTIFICATE', 'true') === 'true',
+
+    jwtAccessSecret: getEnv('JWT_ACCESS_SECRET'),
+    jwtRefreshSecret: getEnv('JWT_REFRESH_SECRET'),
+    jwtAccessExpiresIn: getEnv('JWT_ACCESS_EXPIRES_IN', '15m'),
+    jwtRefreshExpiresIn: getEnv('JWT_REFRESH_EXPIRES_IN', '7d'),
+
+    emailVerificationTokenExpiresHours: Number(
+        getEnv('EMAIL_VERIFICATION_TOKEN_EXPIRES_HOURS', '24')
+    ),
+    bcryptSaltRounds: Number(getEnv('BCRYPT_SALT_ROUNDS', '12')),
 };
