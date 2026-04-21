@@ -38,24 +38,22 @@ export class OrganizationsService {
             throw new ConflictError(`An organization with slug "${input.slug}" already exists.`);
         }
 
-        const org = await this.orgsRepo.create({
-            name: input.name,
-            slug: input.slug,
-            description: input.description,
-        });
-
-        // Create membership for creator
-        const membership = await this.orgsRepo.createMembership({
-            organizationId: org.id,
-            userId: actor.userId,
-            status: 'ACTIVE',
-        });
-
-        // Assign ORG_ADMIN role
+        // Resolve ORG_ADMIN role ID before starting any writes
         const [orgAdminRole] = await this.orgsRepo.findRolesByCodes(['ORG_ADMIN']);
-        if (orgAdminRole) {
-            await this.orgsRepo.setMembershipRoles(membership.id, [orgAdminRole.id]);
+        if (!orgAdminRole) {
+            // ORG_ADMIN role must exist — it is seeded in 10.seed_essential_roles_and_perms.sql
+            throw new Error(
+                'ORG_ADMIN role is not seeded in the database. Run the seed script and retry.'
+            );
         }
+
+        // All three writes (org + membership + role) run inside a single DB transaction.
+        // A crash at any point rolls back the entire operation — no orphaned data.
+        const org = await this.orgsRepo.createOrganizationWithAdmin(
+            { name: input.name, slug: input.slug, description: input.description },
+            actor.userId,
+            orgAdminRole.id
+        );
 
         return mapOrganization(org);
     }
@@ -108,10 +106,23 @@ export class OrganizationsService {
             throw new NotFoundError(`No user found with email "${input.email}".`);
         }
 
-        // Check for existing membership
+        // Reject inactive or unverified users — they cannot meaningfully use a membership
+        if (!targetUser.is_active) {
+            throw new ForbiddenError('This user account is deactivated and cannot be added.');
+        }
+        if (!targetUser.email_verified) {
+            throw new ForbiddenError('This user has not verified their email address yet.');
+        }
+
+        // Check for existing membership — any status (DB unique constraint covers this too)
         const existing = await this.orgsRepo.findMembership(organizationId, targetUser.id);
         if (existing) {
-            throw new ConflictError('User is already a member of this organization.');
+            const statusLabel = existing.status !== 'ACTIVE' || existing.left_at !== null
+                ? 'an inactive'
+                : 'an active';
+            throw new ConflictError(
+                `User already has ${statusLabel} membership in this organization.`
+            );
         }
 
         const membership = await this.orgsRepo.createMembership({
@@ -172,7 +183,8 @@ export class OrganizationsService {
         if (!membership || membership.organization_id !== organizationId) {
             throw new NotFoundError('Membership not found in this organization.');
         }
-        if (membership.status !== 'ACTIVE') {
+        // Both status AND left_at must indicate active — either alone is not sufficient
+        if (membership.status !== 'ACTIVE' || membership.left_at !== null) {
             throw new ForbiddenError('Cannot assign roles to an inactive membership.');
         }
 

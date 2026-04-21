@@ -39,6 +39,65 @@ export class OrganizationsRepository {
         return result.recordset[0];
     }
 
+    /**
+     * Atomically creates an organization, the creator's membership, and assigns a role.
+     * All three writes are wrapped in a single DB transaction to prevent orphaned data
+     * if any step fails.
+     */
+    async createOrganizationWithAdmin(
+        data: CreateOrganizationData,
+        userId: string,
+        orgAdminRoleId: string
+    ): Promise<OrganizationRow> {
+        const transaction = new sql.Transaction(this.pool);
+        await transaction.begin();
+        try {
+            // 1. Create organization
+            const orgResult = await transaction
+                .request()
+                .input('name', sql.NVarChar(200), data.name)
+                .input('slug', sql.NVarChar(150), data.slug)
+                .input('description', sql.NVarChar(1000), data.description ?? null)
+                .query<OrganizationRow>(`
+                    INSERT INTO app.organizations (name, slug, description)
+                    OUTPUT
+                        INSERTED.id, INSERTED.name, INSERTED.slug, INSERTED.description,
+                        INSERTED.is_active, INSERTED.created_at, INSERTED.updated_at, INSERTED.deleted_at
+                    VALUES (@name, @slug, @description)
+                `);
+            const org = orgResult.recordset[0];
+
+            // 2. Create creator's membership
+            const membershipResult = await transaction
+                .request()
+                .input('organizationId', sql.UniqueIdentifier, org.id)
+                .input('userId', sql.UniqueIdentifier, userId)
+                .input('status', sql.NVarChar(30), 'ACTIVE')
+                .query<{ id: string }>(`
+                    INSERT INTO app.organization_memberships (organization_id, user_id, status)
+                    OUTPUT INSERTED.id
+                    VALUES (@organizationId, @userId, @status)
+                `);
+            const membershipId = membershipResult.recordset[0].id;
+
+            // 3. Assign ORG_ADMIN role
+            await transaction
+                .request()
+                .input('membershipId', sql.UniqueIdentifier, membershipId)
+                .input('roleId', sql.UniqueIdentifier, orgAdminRoleId)
+                .query(`
+                    INSERT INTO app.organization_membership_roles (organization_membership_id, role_id)
+                    VALUES (@membershipId, @roleId)
+                `);
+
+            await transaction.commit();
+            return org;
+        } catch (err) {
+            await transaction.rollback();
+            throw err;
+        }
+    }
+
     async findById(id: string): Promise<OrganizationRow | null> {
         const result = await this.pool
             .request()
@@ -227,7 +286,7 @@ export class OrganizationsRepository {
         return result.recordset.map(r => r.code);
     }
 
-    /** Replace all roles for a membership in one transaction */
+    /** Replace all roles for a membership (sequential — no transaction wrapper available at pool level) */
     async setMembershipRoles(membershipId: string, roleIds: string[]): Promise<void> {
         const req = this.pool.request().input('membershipId', sql.UniqueIdentifier, membershipId);
 
