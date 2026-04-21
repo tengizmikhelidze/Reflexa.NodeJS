@@ -330,6 +330,237 @@ Pass this token to `POST /auth/verify-email` to complete verification.
 
 ---
 
+---
+
+## Organization Endpoints
+
+All organization endpoints require `Authorization: Bearer <accessToken>`.
+
+---
+
+### POST `/organizations` 🔒
+
+Create a new organization. Creator automatically becomes an ACTIVE member with `ORG_ADMIN` role.
+
+**Request body**
+```typescript
+{
+  name: string;         // required, max 200 chars
+  slug: string;         // required, lowercase letters/numbers/hyphens only, max 150
+  description?: string; // optional, max 1000 chars
+}
+```
+
+**Response — 201**
+```typescript
+{
+  success: true;
+  data: { organization: OrganizationSummary }
+}
+```
+
+**Error cases**
+| Status | Message |
+|--------|---------|
+| 400 | Validation failed |
+| 409 | "An organization with slug '...' already exists." |
+
+---
+
+### GET `/organizations` 🔒
+
+List organizations the current user belongs to (active memberships only).
+Super admins receive all active organizations.
+
+**Response — 200**
+```typescript
+{
+  success: true;
+  data: { organizations: OrganizationSummary[] }
+}
+```
+
+---
+
+### GET `/organizations/:organizationId/me` 🔒
+
+Returns the current user's full access profile inside the organization.
+
+**Response — 200**
+```typescript
+{
+  success: true;
+  data: {
+    organization: OrganizationSummary;
+    membership: MembershipSummary;
+    effectivePermissions: string[];  // permission codes
+  }
+}
+```
+
+**Error cases**
+| Status | Message |
+|--------|---------|
+| 400 | organizationId is not a valid UUID |
+| 403 | Not an active member |
+| 404 | Organization not found |
+
+---
+
+### POST `/organizations/:organizationId/members` 🔒
+
+Add an existing user to the organization by email. Requires `users.manage` permission.
+
+**Request body**
+```typescript
+{
+  email: string;        // required — must match an existing verified user
+  roleCodes?: string[]; // optional initial roles e.g. ["ATHLETE"]
+}
+```
+
+**Response — 201**
+```typescript
+{
+  success: true;
+  data: { member: MemberWithRoles }
+}
+```
+
+**Error cases**
+| Status | Message |
+|--------|---------|
+| 400 | Validation failed |
+| 403 | No `users.manage` permission |
+| 404 | User not found with that email |
+| 404 | Unknown role codes |
+| 409 | User is already a member |
+
+---
+
+### GET `/organizations/:organizationId/members` 🔒
+
+List all active members with their roles. Requires `users.manage` permission.
+
+**Response — 200**
+```typescript
+{
+  success: true;
+  data: { members: MemberWithRoles[] }
+}
+```
+
+---
+
+### POST `/organizations/:organizationId/members/:membershipId/roles` 🔒
+
+Replace role assignments for a membership. Requires `users.manage` permission.
+
+**Request body**
+```typescript
+{
+  roleCodes: string[];  // required, min 1 — replaces ALL existing roles
+}
+```
+
+**Response — 200**
+```typescript
+{
+  success: true;
+  data: { assignedRoles: string[] }
+}
+```
+
+**Error cases**
+| Status | Message |
+|--------|---------|
+| 400 | Validation failed |
+| 403 | No `users.manage` permission or membership is inactive |
+| 404 | Membership not found / unknown role codes |
+
+---
+
+### GET `/organizations/:organizationId/members/:membershipId/permissions` 🔒
+
+Get effective permissions for a membership. Allowed for self OR users with `users.manage`.
+
+**Response — 200**
+```typescript
+{
+  success: true;
+  data: {
+    membershipId: string;
+    userId: string;
+    organizationId: string;
+    permissions: string[];  // deduplicated permission codes
+  }
+}
+```
+
+---
+
+## Shared Organization Types
+
+### `OrganizationSummary`
+```typescript
+interface OrganizationSummary {
+  id: string;
+  name: string;
+  slug: string;
+  description: string | null;
+  isActive: boolean;
+  createdAt: string;  // ISO 8601
+}
+```
+
+### `MembershipSummary`
+```typescript
+interface MembershipSummary {
+  id: string;
+  userId: string;
+  status: string;     // "ACTIVE" | "INVITED" | "SUSPENDED"
+  joinedAt: string;   // ISO 8601
+  roles: string[];    // role codes e.g. ["ORG_ADMIN"]
+}
+```
+
+### `MemberWithRoles`
+```typescript
+interface MemberWithRoles {
+  membershipId: string;
+  userId: string;
+  email: string;
+  firstName: string | null;
+  lastName: string | null;
+  displayName: string | null;
+  status: string;
+  joinedAt: string;
+  roles: string[];
+}
+```
+
+### Available Role Codes
+| Code | Description |
+|------|-------------|
+| `ORG_ADMIN` | Organization administrator |
+| `TRAINER` | Trainer / coach |
+| `ATHLETE` | Regular athlete |
+| `VIEWER` | Read-only viewer |
+
+### Available Permission Codes
+| Code | Description |
+|------|-------------|
+| `users.manage` | Manage organization users |
+| `teams.manage` | Manage teams |
+| `devices.manage` | Manage devices |
+| `presets.manage` | Manage presets |
+| `session.start` | Start sessions |
+| `session.end` | End sessions |
+| `session.delete` | Delete sessions |
+| `viewer.scope.manage` | Manage viewer access scopes |
+
+---
+
 ## Health Check
 
 ### GET `/health` — public

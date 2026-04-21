@@ -36,10 +36,8 @@ export class OrganizationsController {
     getMyProfile = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
         try {
             if (!req.user) return next(new UnauthorizedError());
-            const result = await this.orgsService.getMyAccessProfile(
-                req.params.organizationId,
-                req.user
-            );
+            const organizationId = req.params['organizationId'] as string;
+            const result = await this.orgsService.getMyAccessProfile(organizationId, req.user);
             sendSuccess(res, result);
         } catch (err) { next(err); }
     };
@@ -48,8 +46,9 @@ export class OrganizationsController {
     addMember = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
         try {
             if (!req.user) return next(new UnauthorizedError());
+            const organizationId = req.params['organizationId'] as string;
             const result = await this.orgsService.addMember(
-                req.params.organizationId,
+                organizationId,
                 req.body as AddMemberInput,
                 req.user
             );
@@ -61,10 +60,8 @@ export class OrganizationsController {
     listMembers = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
         try {
             if (!req.user) return next(new UnauthorizedError());
-            const result = await this.orgsService.listMembers(
-                req.params.organizationId,
-                req.user
-            );
+            const organizationId = req.params['organizationId'] as string;
+            const result = await this.orgsService.listMembers(organizationId, req.user);
             sendSuccess(res, { members: result });
         } catch (err) { next(err); }
     };
@@ -73,9 +70,11 @@ export class OrganizationsController {
     assignRoles = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
         try {
             if (!req.user) return next(new UnauthorizedError());
+            const organizationId = req.params['organizationId'] as string;
+            const membershipId = req.params['membershipId'] as string;
             const result = await this.orgsService.assignRoles(
-                req.params.organizationId,
-                req.params.membershipId,
+                organizationId,
+                membershipId,
                 req.body as AssignRolesInput,
                 req.user
             );
@@ -87,13 +86,14 @@ export class OrganizationsController {
     getPermissions = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
         try {
             if (!req.user) return next(new UnauthorizedError());
+            const organizationId = req.params['organizationId'] as string;
+            const membershipId = req.params['membershipId'] as string;
             const result = await this.orgsService.getEffectivePermissions(
-                req.params.organizationId,
-                req.params.membershipId,
+                organizationId,
+                membershipId,
                 req.user
             );
             sendSuccess(res, result);
         } catch (err) { next(err); }
     };
 }
-
