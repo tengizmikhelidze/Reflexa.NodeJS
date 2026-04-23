@@ -24,7 +24,7 @@
 
 | # | Task | Priority |
 |---|------|----------|
-| R1 | **Seed role-permission mappings** (`role_permissions` table) so ORG_ADMIN/TRAINER/ATHLETE roles have correct permissions. Without this, ALL members are treated as restricted (athlete-level) unless permissions are granted directly via `user_permission_grants`. | **HIGH** |
+| R1 | **Seed role-permission mappings** — `database/queries/11.seed_role_permissions.sql` created and ready to run. ORG_ADMIN gets all 9 permissions. TRAINER gets session.start/end/assign + presets.manage + teams.manage. ATHLETE and VIEWER get no permissions (self-access and viewer-scope rules apply). | **DONE — run `11.seed_role_permissions.sql` against your DB** |
 | R2 | **Add `validate('query')` to remaining list endpoints** — one-liner per route: `validate(listPresetsQuerySchema, 'query')` etc. | Medium |
 | R3 | **Add pagination to remaining list endpoints** — presets, teams, devices especially. | Medium |
 | R4 | **Error logging improvement** — currently only `console.error` in `error.middleware.ts`. Should use a structured logger (Winston, Pino) before production. | Medium |

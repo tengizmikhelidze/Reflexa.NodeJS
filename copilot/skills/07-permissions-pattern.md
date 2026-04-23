@@ -94,7 +94,36 @@ await this.orgsService.requirePermission(organizationId, actor, 'users.manage');
 | `SUPER_ADMIN` | Global platform admin (from `users.is_super_admin`, not a membership role) |
 
 Roles are stored in `app.roles`. Role-permission mappings are in `app.role_permissions`.
-These must be seeded via `database/queries/10.seed_esential_roles_and_perms.sql`.
+These must be seeded via:
+1. `database/queries/10.seed_esential_roles_and_perms.sql` — roles + permissions
+2. `database/queries/11.seed_role_permissions.sql` — role → permission mappings
+
+### Role → Permission Matrix
+
+| Permission | ORG_ADMIN | TRAINER | ATHLETE | VIEWER |
+|-----------|-----------|---------|---------|--------|
+| `users.manage` | ✅ | ❌ | ❌ | ❌ |
+| `teams.manage` | ✅ | ✅ | ❌ | ❌ |
+| `devices.manage` | ✅ | ❌ | ❌ | ❌ |
+| `presets.manage` | ✅ | ✅ | ❌ | ❌ |
+| `session.start` | ✅ | ✅ | ❌ | ❌ |
+| `session.end` | ✅ | ✅ | ❌ | ❌ |
+| `session.assign` | ✅ | ✅ | ❌ | ❌ |
+| `session.delete` | ✅ | ❌ | ❌ | ❌ |
+| `viewer.scope.manage` | ✅ | ❌ | ❌ | ❌ |
+
+> ATHLETE and VIEWER have no role-based permissions. Their access is controlled by:
+> - **Athlete**: `assigned_to_user_id = actorId` or `started_by_user_id = actorId`
+> - **Viewer**: entries in `app.viewer_access_scopes` for their `viewer_user_id`
+
+To verify mappings are seeded in MSSQL:
+```sql
+SELECT r.code AS role, p.code AS permission
+FROM app.role_permissions rp
+INNER JOIN app.roles r       ON r.id = rp.role_id
+INNER JOIN app.permissions p ON p.id = rp.permission_id
+ORDER BY r.code, p.code;
+```
 
 ---
 
