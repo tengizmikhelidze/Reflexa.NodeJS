@@ -2,8 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import { UnauthorizedError } from '../../shared/errors/http-errors.js';
 import { sendSuccess } from '../../shared/utils/response.js';
 import { PresetsService } from './presets.service.js';
-import { listPresetsQuerySchema } from './presets.validation.js';
-import { CreatePresetInput, UpdatePresetInput } from './presets.types.js';
+import { CreatePresetInput, ListPresetsFilters, UpdatePresetInput } from './presets.types.js';
 
 export class PresetsController {
     constructor(private readonly presetsService: PresetsService) {}
@@ -17,14 +16,13 @@ export class PresetsController {
         } catch (err) { next(err); }
     };
 
-    // GET /presets
+    // GET /presets — query params validated by validate(listPresetsQuerySchema, 'query') in routes
     list = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
         try {
             if (!req.user) return next(new UnauthorizedError());
-            const parsed = listPresetsQuerySchema.safeParse(req.query);
-            const filters = parsed.success ? parsed.data : {};
-            const presets = await this.presetsService.listPresets(filters, req.user);
-            sendSuccess(res, { presets });
+            const filters = req.query as unknown as ListPresetsFilters;
+            const { presets, total, limit, offset } = await this.presetsService.listPresets(filters, req.user);
+            sendSuccess(res, { presets, pagination: { total, limit, offset } });
         } catch (err) { next(err); }
     };
 

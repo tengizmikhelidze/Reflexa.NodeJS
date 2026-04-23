@@ -2,8 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import { UnauthorizedError } from '../../shared/errors/http-errors.js';
 import { sendSuccess } from '../../shared/utils/response.js';
 import { TeamsService } from './teams.service.js';
-import { listTeamsQuerySchema } from './teams.validation.js';
-import { CreateTeamInput, AddTeamMemberInput } from './teams.types.js';
+import { CreateTeamInput, AddTeamMemberInput, ListTeamsFilters } from './teams.types.js';
 
 export class TeamsController {
     constructor(private readonly teamsService: TeamsService) {}
@@ -17,12 +16,11 @@ export class TeamsController {
         } catch (err) { next(err); }
     };
 
-    // GET /teams
+    // GET /teams — query params validated by validate(listTeamsQuerySchema, 'query') in routes
     list = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
         try {
             if (!req.user) return next(new UnauthorizedError());
-            const parsed = listTeamsQuerySchema.safeParse(req.query);
-            const filters = parsed.success ? parsed.data : {};
+            const filters = req.query as unknown as ListTeamsFilters;
             const teams = await this.teamsService.listTeams(filters, req.user);
             sendSuccess(res, { teams });
         } catch (err) { next(err); }

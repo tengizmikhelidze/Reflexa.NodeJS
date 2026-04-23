@@ -38,11 +38,13 @@ export const listPresetsQuerySchema = z.object({
     scope:           z.enum(['USER', 'ORGANIZATION']).optional(),
     organizationId:  z.string().uuid().optional(),
     createdByUserId: z.string().uuid().optional(),
+    limit:           z.coerce.number().int().min(1).max(200).default(50),
+    offset:          z.coerce.number().int().min(0).default(0),
 });
 
 // --- Inferred Types ---
 
-export type CreatePresetSchema    = z.infer<typeof createPresetSchema>;
-export type UpdatePresetSchema    = z.infer<typeof updatePresetSchema>;
+export type CreatePresetSchema     = z.infer<typeof createPresetSchema>;
+export type UpdatePresetSchema     = z.infer<typeof updatePresetSchema>;
 export type ListPresetsQuerySchema = z.infer<typeof listPresetsQuerySchema>;
 

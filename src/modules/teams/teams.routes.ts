@@ -11,6 +11,7 @@ import {
     addTeamMemberSchema,
     teamIdParamSchema,
     teamMemberParamSchema,
+    listTeamsQuerySchema,
 } from './teams.validation.js';
 
 export async function createTeamsRouter(): Promise<Router> {
@@ -30,7 +31,7 @@ export async function createTeamsRouter(): Promise<Router> {
     router.post('/', validate(createTeamSchema), controller.create);
 
     // GET /teams
-    router.get('/', controller.list);
+    router.get('/', validate(listTeamsQuerySchema, 'query'), controller.list);
 
     // GET /teams/:teamId
     router.get('/:teamId', validate(teamIdParamSchema, 'params'), controller.getDetail);

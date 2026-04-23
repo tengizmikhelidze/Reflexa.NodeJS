@@ -14,6 +14,7 @@ import {
     PresetSummary,
     PresetDetail,
     PresetRow,
+    PresetListResult,
 } from './presets.types.js';
 
 export class PresetsService {
@@ -47,21 +48,29 @@ export class PresetsService {
 
     // ── List Presets ──────────────────────────────────────────────────────────
 
-    async listPresets(filters: ListPresetsFilters, actor: AuthUser): Promise<PresetSummary[]> {
+    async listPresets(filters: ListPresetsFilters, actor: AuthUser): Promise<PresetListResult> {
         // If filtering by org, require active membership first
         if (filters.organizationId && !actor.isSuperAdmin) {
             await this.requireActiveMember(filters.organizationId, actor);
         }
 
-        const rows = await this.presetsRepo.findMany({
+        const limit  = filters.limit  ?? 50;
+        const offset = filters.offset ?? 0;
+
+        const queryOpts = {
             scope:           filters.scope,
             organizationId:  filters.organizationId,
             createdByUserId: filters.createdByUserId,
             actorUserId:     actor.userId,
             isSuperAdmin:    actor.isSuperAdmin,
-        });
+        };
 
-        return rows.map(mapPresetSummary);
+        const [rows, total] = await Promise.all([
+            this.presetsRepo.findMany({ ...queryOpts, limit, offset }),
+            this.presetsRepo.countMany(queryOpts),
+        ]);
+
+        return { presets: rows.map(mapPresetSummary), total, limit, offset };
     }
 
     // ── Get Preset Detail ─────────────────────────────────────────────────────

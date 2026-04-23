@@ -33,6 +33,15 @@ export interface ListPresetsFilters {
     scope?: string;
     organizationId?: string;
     createdByUserId?: string;
+    limit?:  number;
+    offset?: number;
+}
+
+export interface PresetListResult {
+    presets: PresetSummary[];
+    total:   number;
+    limit:   number;
+    offset:  number;
 }
 
 // --- Response Shapes ---

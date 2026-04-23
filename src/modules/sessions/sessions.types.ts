@@ -201,3 +201,10 @@ export interface SessionDetail extends SessionSummary {
     events: SessionEventItem[];
 }
 
+export interface SessionListResult {
+    sessions: SessionSummary[];
+    total:    number;
+    limit:    number;
+    offset:   number;
+}
+

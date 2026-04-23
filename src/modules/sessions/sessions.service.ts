@@ -17,6 +17,7 @@ import {
     SessionSummary,
     SessionDetail,
     TrainingSessionRow,
+    SessionListResult,
 } from './sessions.types.js';
 
 /** Permission codes that grant elevated session visibility (all org sessions). */
@@ -190,7 +191,7 @@ export class SessionsService {
     async listSessions(
         filters: ListSessionsFilters,
         actor: AuthUser
-    ): Promise<SessionSummary[]> {
+    ): Promise<SessionListResult> {
         if (!actor.isSuperAdmin) {
             if (!filters.organizationId) {
                 throw new ForbiddenError('organizationId is required when listing sessions.');
@@ -202,18 +203,24 @@ export class SessionsService {
             ? true
             : await this.isElevatedActor(filters.organizationId!, actor);
 
-        const rows = await this.sessionsRepo.findSessions({
+        const limit  = filters.limit  ?? 50;
+        const offset = filters.offset ?? 0;
+
+        const queryOpts = {
             organizationId:   filters.organizationId,
             actorUserId:      actor.userId,
             elevated,
             isSuperAdmin:     actor.isSuperAdmin,
             assignedToUserId: filters.assignedToUserId,
             teamId:           filters.teamId,
-            limit:            filters.limit  ?? 50,
-            offset:           filters.offset ?? 0,
-        });
+        };
 
-        return rows.map(mapSessionSummary);
+        const [rows, total] = await Promise.all([
+            this.sessionsRepo.findSessions({ ...queryOpts, limit, offset }),
+            this.sessionsRepo.countSessions(queryOpts),
+        ]);
+
+        return { sessions: rows.map(mapSessionSummary), total, limit, offset };
     }
 
     // ── Get Session Detail ────────────────────────────────────────────────────

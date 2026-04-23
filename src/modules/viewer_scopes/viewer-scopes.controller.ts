@@ -2,8 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import { UnauthorizedError } from '../../shared/errors/http-errors.js';
 import { sendSuccess } from '../../shared/utils/response.js';
 import { ViewerScopesService } from './viewer-scopes.service.js';
-import { listViewerScopesQuerySchema } from './viewer-scopes.validation.js';
-import { CreateViewerScopeInput } from './viewer-scopes.types.js';
+import { CreateViewerScopeInput, ListViewerScopesFilters } from './viewer-scopes.types.js';
 
 export class ViewerScopesController {
     constructor(private readonly scopesService: ViewerScopesService) {}
@@ -17,12 +16,11 @@ export class ViewerScopesController {
         } catch (err) { next(err); }
     };
 
-    // GET /viewer-scopes
+    // GET /viewer-scopes — query params validated by validate(listViewerScopesQuerySchema, 'query') in routes
     list = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
         try {
             if (!req.user) return next(new UnauthorizedError());
-            const parsed = listViewerScopesQuerySchema.safeParse(req.query);
-            const filters = parsed.success ? parsed.data : {};
+            const filters = req.query as unknown as ListViewerScopesFilters;
             const scopes = await this.scopesService.listScopes(filters, req.user);
             sendSuccess(res, { scopes });
         } catch (err) { next(err); }

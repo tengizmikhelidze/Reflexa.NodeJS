@@ -353,6 +353,65 @@ a     * Visibility-aware session list.
         return result.recordset;
     }
 
+    /**
+     * Returns the total count of sessions matching the same filters and visibility
+     * as findSessions(), without pagination.  Run in parallel with findSessions().
+     */
+    async countSessions(opts: {
+        organizationId?: string;
+        actorUserId?: string;
+        elevated?: boolean;
+        isSuperAdmin?: boolean;
+        assignedToUserId?: string;
+        teamId?: string;
+    }): Promise<number> {
+        const req = this.pool.request();
+
+        const conditions: string[] = ['ts.deleted_at IS NULL'];
+
+        if (opts.organizationId) {
+            req.input('organizationId', sql.UniqueIdentifier, opts.organizationId);
+            conditions.push('ts.organization_id = @organizationId');
+        }
+        if (opts.assignedToUserId) {
+            req.input('assignedToUserId', sql.UniqueIdentifier, opts.assignedToUserId);
+            conditions.push('ts.assigned_to_user_id = @assignedToUserId');
+        }
+        if (opts.teamId) {
+            req.input('teamId', sql.UniqueIdentifier, opts.teamId);
+            conditions.push('ts.team_id = @teamId');
+        }
+
+        let visibilityClause = '';
+
+        if (!opts.isSuperAdmin && !opts.elevated) {
+            req.input('actorUserId', sql.UniqueIdentifier, opts.actorUserId!);
+            req.input('actorOrgId',  sql.UniqueIdentifier, opts.organizationId!);
+            visibilityClause = `
+                AND (
+                    ts.assigned_to_user_id = @actorUserId
+                    OR ts.started_by_user_id = @actorUserId
+                    OR ts.assigned_to_user_id IN (
+                        SELECT vas.target_user_id
+                        FROM app.viewer_access_scopes vas
+                        WHERE vas.organization_id = @actorOrgId
+                          AND vas.viewer_user_id  = @actorUserId
+                    )
+                )
+            `;
+        }
+
+        const where = conditions.join(' AND ');
+        const result = await req.query<{ total: number }>(`
+            SELECT COUNT(1) AS total
+            FROM app.training_sessions ts
+            WHERE ${where}
+            ${visibilityClause}
+        `);
+
+        return result.recordset[0]?.total ?? 0;
+    }
+
     // ── Sub-resources ─────────────────────────────────────────────────────────
 
     async findActivePodsBySessionId(

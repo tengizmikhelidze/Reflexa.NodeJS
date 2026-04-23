@@ -25,6 +25,8 @@ export interface FindPresetsOptions {
     actorUserId?: string;
     /** When true, returns ALL non-deleted presets (super admin) */
     isSuperAdmin?: boolean;
+    limit:  number;
+    offset: number;
 }
 
 export class PresetsRepository {
@@ -79,6 +81,8 @@ export class PresetsRepository {
      */
     async findMany(opts: FindPresetsOptions): Promise<PresetRow[]> {
         const req = this.pool.request();
+        req.input('limit',  sql.Int, opts.limit);
+        req.input('offset', sql.Int, opts.offset);
 
         let baseWhere = `tp.deleted_at IS NULL`;
 
@@ -97,6 +101,9 @@ export class PresetsRepository {
             baseWhere += ` AND tp.created_by_user_id = @createdByUserId`;
         }
 
+        const pagination = `ORDER BY tp.created_at DESC
+            OFFSET @offset ROWS FETCH NEXT @limit ROWS ONLY`;
+
         let query: string;
 
         if (opts.isSuperAdmin) {
@@ -105,7 +112,7 @@ export class PresetsRepository {
                        tp.name, tp.description, tp.config_json, tp.created_at, tp.updated_at, tp.deleted_at
                 FROM app.training_presets tp
                 WHERE ${baseWhere}
-                ORDER BY tp.created_at DESC
+                ${pagination}
             `;
         } else {
             // Actor sees: own personal presets OR org presets from their active orgs
@@ -128,12 +135,68 @@ export class PresetsRepository {
                             AND om.left_at IS NULL
                       ))
                   )
-                ORDER BY tp.created_at DESC
+                ${pagination}
             `;
         }
 
         const result = await req.query<PresetRow>(query);
         return result.recordset;
+    }
+
+    /**
+     * Returns the total count of presets matching the same filters and visibility,
+     * without pagination. Run in parallel with findMany().
+     */
+    async countMany(opts: Omit<FindPresetsOptions, 'limit' | 'offset'>): Promise<number> {
+        const req = this.pool.request();
+
+        let baseWhere = `tp.deleted_at IS NULL`;
+
+        if (opts.scope) {
+            req.input('scope', sql.NVarChar(20), opts.scope);
+            baseWhere += ` AND tp.scope = @scope`;
+        }
+
+        if (opts.organizationId) {
+            req.input('organizationId', sql.UniqueIdentifier, opts.organizationId);
+            baseWhere += ` AND tp.organization_id = @organizationId`;
+        }
+
+        if (opts.createdByUserId) {
+            req.input('createdByUserId', sql.UniqueIdentifier, opts.createdByUserId);
+            baseWhere += ` AND tp.created_by_user_id = @createdByUserId`;
+        }
+
+        let query: string;
+
+        if (opts.isSuperAdmin) {
+            query = `
+                SELECT COUNT(1) AS total
+                FROM app.training_presets tp
+                WHERE ${baseWhere}
+            `;
+        } else {
+            req.input('actorUserId', sql.UniqueIdentifier, opts.actorUserId!);
+            query = `
+                SELECT COUNT(1) AS total
+                FROM app.training_presets tp
+                WHERE ${baseWhere}
+                  AND (
+                      (tp.scope = N'USER' AND tp.created_by_user_id = @actorUserId)
+                      OR
+                      (tp.scope = N'ORGANIZATION' AND EXISTS (
+                          SELECT 1 FROM app.organization_memberships om
+                          WHERE om.organization_id = tp.organization_id
+                            AND om.user_id = @actorUserId
+                            AND om.status = N'ACTIVE'
+                            AND om.left_at IS NULL
+                      ))
+                  )
+            `;
+        }
+
+        const result = await req.query<{ total: number }>(query);
+        return result.recordset[0]?.total ?? 0;
     }
 
     // ── Update ────────────────────────────────────────────────────────────────

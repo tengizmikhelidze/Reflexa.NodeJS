@@ -10,6 +10,7 @@ import {
     createPresetSchema,
     updatePresetSchema,
     presetIdParamSchema,
+    listPresetsQuerySchema,
 } from './presets.validation.js';
 
 export async function createPresetsRouter(): Promise<Router> {
@@ -29,7 +30,7 @@ export async function createPresetsRouter(): Promise<Router> {
     router.post('/', validate(createPresetSchema), controller.create);
 
     // GET /presets
-    router.get('/', controller.list);
+    router.get('/', validate(listPresetsQuerySchema, 'query'), controller.list);
 
     // GET /presets/:presetId
     router.get('/:presetId', validate(presetIdParamSchema, 'params'), controller.getDetail);

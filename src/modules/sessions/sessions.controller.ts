@@ -28,8 +28,8 @@ export class SessionsController {
         try {
             if (!req.user) return next(new UnauthorizedError());
             const filters = req.query as unknown as ListSessionsFilters;
-            const sessions = await this.sessionsService.listSessions(filters, req.user);
-            sendSuccess(res, { sessions });
+            const { sessions, total, limit, offset } = await this.sessionsService.listSessions(filters, req.user);
+            sendSuccess(res, { sessions, pagination: { total, limit, offset } });
         } catch (err) { next(err); }
     };
 

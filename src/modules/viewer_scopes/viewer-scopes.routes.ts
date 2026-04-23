@@ -9,6 +9,7 @@ import { ViewerScopesController } from './viewer-scopes.controller.js';
 import {
     createViewerScopeSchema,
     scopeIdParamSchema,
+    listViewerScopesQuerySchema,
 } from './viewer-scopes.validation.js';
 
 export async function createViewerScopesRouter(): Promise<Router> {
@@ -28,7 +29,7 @@ export async function createViewerScopesRouter(): Promise<Router> {
     router.post('/', validate(createViewerScopeSchema), controller.grant);
 
     // GET /viewer-scopes
-    router.get('/', controller.list);
+    router.get('/', validate(listViewerScopesQuerySchema, 'query'), controller.list);
 
     // DELETE /viewer-scopes/:scopeId
     router.delete('/:scopeId', validate(scopeIdParamSchema, 'params'), controller.revoke);
