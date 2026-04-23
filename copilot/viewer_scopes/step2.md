@@ -1,10 +1,10 @@
 Proceed to Step 2 only.
 
-Verify schema assumptions for the Presets module.
+Verify schema assumptions for the Viewer Scopes module.
 
 Check and list the exact tables/columns you will rely on from:
 
-* app.training_presets
+* app.viewer_access_scopes
 * app.organizations
 * app.users
 

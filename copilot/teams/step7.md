@@ -2,8 +2,8 @@ Proceed to Step 7 only.
 
 Implement:
 
-* presets.controller.ts
-* presets.routes.ts
+* teams.controller.ts
+* teams.routes.ts
 
 Requirements:
 
@@ -13,9 +13,10 @@ Requirements:
 * use auth middleware on all routes
 * define endpoints for:
 
-  * POST /presets
-  * GET /presets
-  * GET /presets/:presetId
-  * PATCH /presets/:presetId
-  * DELETE /presets/:presetId
+  * POST /teams
+  * GET /teams
+  * GET /teams/:teamId
+  * POST /teams/:teamId/members
+  * GET /teams/:teamId/members
+  * DELETE /teams/:teamId/members/:userId
 * do not integrate into app yet

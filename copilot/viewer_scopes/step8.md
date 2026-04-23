@@ -1,6 +1,6 @@
 Proceed to Step 8 only.
 
-Integrate the Presets routes into the app.
+Integrate the Viewer Scopes routes into the app.
 
 I want:
 

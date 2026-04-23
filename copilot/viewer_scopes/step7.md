@@ -2,8 +2,8 @@ Proceed to Step 7 only.
 
 Implement:
 
-* presets.controller.ts
-* presets.routes.ts
+* viewer-scopes.controller.ts
+* viewer-scopes.routes.ts
 
 Requirements:
 
@@ -13,9 +13,7 @@ Requirements:
 * use auth middleware on all routes
 * define endpoints for:
 
-  * POST /presets
-  * GET /presets
-  * GET /presets/:presetId
-  * PATCH /presets/:presetId
-  * DELETE /presets/:presetId
+  * POST /viewer-scopes
+  * GET /viewer-scopes
+  * DELETE /viewer-scopes/:scopeId
 * do not integrate into app yet

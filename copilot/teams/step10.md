@@ -1,6 +1,6 @@
 Proceed to Step 10 only.
 
-Perform a gap audit for the Presets module.
+Perform a gap audit for the Teams module.
 
 List:
 

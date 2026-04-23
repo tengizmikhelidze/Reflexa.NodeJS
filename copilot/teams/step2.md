@@ -1,10 +1,11 @@
 Proceed to Step 2 only.
 
-Verify schema assumptions for the Presets module.
+Verify schema assumptions for the Teams module.
 
 Check and list the exact tables/columns you will rely on from:
 
-* app.training_presets
+* app.teams
+* app.team_memberships
 * app.organizations
 * app.users
 
