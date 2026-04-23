@@ -29,6 +29,7 @@ Load the relevant file(s) before implementing any feature.
 | Auth | `/api/auth` | — (public + Bearer) |
 | Organizations | `/api/organizations` | `users.manage` |
 | Devices | `/api/devices` | `devices.manage` |
+| Sessions | `/api/sessions` | `session.assign`, `session.delete` |
 
 ---
 

@@ -77,6 +77,7 @@ await this.orgsService.requirePermission(organizationId, actor, 'users.manage');
 | `presets.manage` | Manage organization presets |
 | `session.start` | Start sessions |
 | `session.end` | End sessions |
+| `session.assign` | Assign sessions to users or teams |
 | `session.delete` | Delete sessions |
 | `viewer.scope.manage` | Assign viewer access scopes |
 

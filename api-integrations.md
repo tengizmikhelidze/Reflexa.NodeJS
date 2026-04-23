@@ -13,8 +13,12 @@ All responses follow a consistent envelope shape (see [Response Shape](#response
 - [Response Shape](#response-shape)
 - [Auth Endpoints](#auth-endpoints)
 - [Organization Endpoints](#organization-endpoints)
+- [Device Endpoints](#device-endpoints)
+- [Session Endpoints](#session-endpoints)
 - [Shared Types](#shared-types)
 - [Shared Organization Types](#shared-organization-types)
+- [Shared Device Types](#shared-device-types)
+- [Shared Session Types](#shared-session-types)
 - [Integration Guide](#integration-guide)
 - [Health Check](#health-check)
 - [Error Reference](#error-reference)
@@ -174,9 +178,9 @@ Consume a one-time email verification token. Marks the user as verified.
 | Status | Message |
 |--------|---------|
 | 400 | Validation failed |
-| 401 | "Verification token has already been used." |
-| 401 | "Verification token has expired. Please request a new one." |
 | 404 | "Verification token is invalid." |
+| 409 | "Verification token has already been used." |
+| 403 | "Verification token has expired. Please request a new one." |
 
 ---
 
@@ -574,6 +578,7 @@ interface MemberWithRoles {
 | `presets.manage` | Manage presets |
 | `session.start` | Start sessions |
 | `session.end` | End sessions |
+| `session.assign` | Assign sessions to users or teams |
 | `session.delete` | Delete sessions |
 | `viewer.scope.manage` | Manage viewer access scopes |
 
@@ -876,6 +881,289 @@ interface KitAccessGrant {
 | Active org member (any role) | Org kits | ❌ |
 | User with `can_manage = true` on kit | That kit | That kit |
 | User with `can_operate = true` on kit | That kit | ❌ |
+
+---
+
+## Session Endpoints
+
+All session endpoints require `Authorization: Bearer <accessToken>`.
+
+---
+
+### POST `/sessions/sync` 🔒
+
+Sync a completed offline (or online) training session. Idempotent — if the same
+`(organizationId, clientSessionId)` pair already exists the existing record is returned with **200**
+instead of **201** and no data is changed.
+
+Actor must be an active member of the specified organization.
+
+**Request body**
+```typescript
+{
+  clientSessionId: string;       // required, max 100 — client UUID used for idempotency
+  organizationId:  string;       // required, UUID
+  deviceKitId:     string;       // required, UUID
+  hubDeviceId?:    string;       // optional, UUID — must belong to deviceKitId
+
+  startedByUserId?:  string;     // optional, UUID
+  assignedToUserId?: string;     // optional, UUID — must be active org member
+  teamId?:           string;     // optional, UUID — must belong to same org
+
+  origin:       'OFFLINE_SYNC' | 'WEB' | 'ADMIN_CREATE';
+  status:       'COMPLETED' | 'CANCELLED' | 'FAILED';
+  endMode:      'TIME' | 'TARGET' | 'REPETITION' | 'EARLY_END';
+  presetId?:    string;          // optional, UUID
+  trainingMode: string;          // max 50 chars
+  configJson:   Record<string, unknown>;
+
+  sessionStartedAt: string;      // ISO 8601
+  sessionEndedAt:   string;      // ISO 8601
+  durationMs:       number;      // int, min 0
+
+  score?:           number;      // int
+  hitCount:         number;      // int, min 0
+  missCount:        number;      // int, min 0
+  accuracyPercent?: number;      // 0–100
+
+  avgReactionMs?:   number;
+  bestReactionMs?:  number;
+  worstReactionMs?: number;
+
+  notes?: string;                // max 1000 chars
+
+  activePods?: Array<{
+    podDeviceId: string;         // UUID — must belong to deviceKitId
+    podOrder?:   number;         // int, min 0
+  }>;
+
+  events?: Array<{
+    podDeviceId?:    string;     // UUID
+    eventIndex:      number;     // int, min 0 — unique per session
+    eventType:       string;     // max 50 chars
+    eventTimestamp:  string;     // ISO 8601
+    elapsedMs?:      number;     // int, min 0
+    reactionTimeMs?: number;
+    isCorrect?:      boolean;
+    payloadJson?:    Record<string, unknown>;
+  }>;
+}
+```
+
+**Response — 201 (new) / 200 (duplicate)**
+```typescript
+{
+  success: true;
+  data: { session: SessionSummary }
+}
+```
+
+**Error cases**
+| Status | Message |
+|--------|---------|
+| 400 | Validation failed |
+| 403 | Not an active member of the organization |
+| 404 | Organization not found / hub not in kit / pod not in kit / assigned user not org member / team not in org |
+
+---
+
+### GET `/sessions` 🔒
+
+List non-deleted sessions. Supports query filters.
+
+Regular users **must** supply `organizationId` and must be an active member of that org.
+Super admins may omit `organizationId` to receive all sessions.
+
+**Query parameters**
+```
+?organizationId=<uuid>       required for non-super-admins
+?assignedToUserId=<uuid>     optional filter
+?teamId=<uuid>               optional filter
+```
+
+**Response — 200**
+```typescript
+{
+  success: true;
+  data: { sessions: SessionSummary[] }
+}
+```
+
+**Error cases**
+| Status | Message |
+|--------|---------|
+| 403 | `organizationId` not provided (non-super-admin) |
+| 403 | Not an active member of the organization |
+
+---
+
+### GET `/sessions/:sessionId` 🔒
+
+Get full session detail including active pods and all events. Actor must be an active org member.
+
+**Path params**
+```
+sessionId  UUID
+```
+
+**Response — 200**
+```typescript
+{
+  success: true;
+  data: { session: SessionDetail }
+}
+```
+
+**Error cases**
+| Status | Message |
+|--------|---------|
+| 400 | sessionId is not a valid UUID |
+| 403 | Not an active member of the session's organization |
+| 404 | Session not found |
+
+---
+
+### PATCH `/sessions/:sessionId/assign` 🔒
+
+Update the assignment (user and/or team) of a session.
+Requires `session.assign` permission on the session's organization.
+
+**Path params**
+```
+sessionId  UUID
+```
+
+**Request body**
+```typescript
+{
+  assignedToUserId?: string | null;  // UUID or null to clear
+  teamId?:           string | null;  // UUID or null to clear
+}
+```
+
+**Response — 200**
+```typescript
+{
+  success: true;
+  data: { session: SessionSummary }
+}
+```
+
+**Error cases**
+| Status | Message |
+|--------|---------|
+| 400 | sessionId is not a valid UUID or body validation failed |
+| 403 | Not an active member or missing `session.assign` permission |
+| 404 | Session not found / assigned user not active org member / team not in org |
+
+---
+
+### DELETE `/sessions/:sessionId` 🔒
+
+Soft-delete a session and write an audit log entry. Idempotent — deleting an already-deleted
+session returns 200 with no error.
+Requires `session.delete` permission on the session's organization.
+
+**Path params**
+```
+sessionId  UUID
+```
+
+**Response — 200**
+```typescript
+{
+  success: true;
+  message: "Session deleted.";
+  data: null;
+}
+```
+
+**Error cases**
+| Status | Message |
+|--------|---------|
+| 400 | sessionId is not a valid UUID |
+| 403 | Not an active member or missing `session.delete` permission |
+
+---
+
+## Shared Session Types
+
+### `SessionSummary`
+```typescript
+interface SessionSummary {
+  id: string;
+  organizationId: string;
+  deviceKitId: string;
+  hubDeviceId: string | null;
+
+  startedByUserId:  string | null;
+  assignedToUserId: string | null;
+  assignedByUserId: string | null;
+  teamId:           string | null;
+
+  origin:          string;   // "OFFLINE_SYNC" | "WEB" | "ADMIN_CREATE"
+  syncStatus:      string;
+  clientSessionId: string | null;
+
+  status:       string;   // "COMPLETED" | "CANCELLED" | "FAILED"
+  endMode:      string;   // "TIME" | "TARGET" | "REPETITION" | "EARLY_END"
+  presetId:     string | null;
+  trainingMode: string;
+
+  sessionStartedAt: string;  // ISO 8601
+  sessionEndedAt:   string;  // ISO 8601
+  durationMs:       number;
+
+  score:           number | null;
+  hitCount:        number;
+  missCount:       number;
+  accuracyPercent: number | null;
+
+  avgReactionMs:   number | null;
+  bestReactionMs:  number | null;
+  worstReactionMs: number | null;
+
+  activePodCount:   number;
+  totalEventsCount: number;
+  notes:            string | null;
+
+  createdAt: string;  // ISO 8601
+  updatedAt: string;  // ISO 8601
+}
+```
+
+### `SessionDetail`
+Extends `SessionSummary` with full config and event data.
+
+```typescript
+interface SessionDetail extends SessionSummary {
+  configJson: Record<string, unknown>;
+  activePods: Array<{
+    id:          string;
+    podDeviceId: string;
+    podOrder:    number | null;
+  }>;
+  events: Array<{
+    id:             string;
+    podDeviceId:    string | null;
+    eventIndex:     number;
+    eventType:      string;
+    eventTimestamp: string;  // ISO 8601
+    elapsedMs:      number | null;
+    reactionTimeMs: number | null;
+    isCorrect:      boolean | null;
+    payloadJson:    Record<string, unknown> | null;
+  }>;
+}
+```
+
+### Session Access Rules
+
+| Who | Can sync | Can view | Can assign | Can delete |
+|-----|----------|----------|------------|------------|
+| Super admin | ✅ | ✅ (all) | ✅ | ✅ |
+| Active org member | ✅ | ✅ (org sessions) | Requires `session.assign` | Requires `session.delete` |
+| Non-member | ❌ | ❌ | ❌ | ❌ |
 
 ---
 

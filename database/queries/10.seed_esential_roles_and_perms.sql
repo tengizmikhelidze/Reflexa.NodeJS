@@ -35,6 +35,10 @@ SELECT 'session.delete', 'Delete Session', 'Can delete synced sessions'
 WHERE NOT EXISTS (SELECT 1 FROM app.permissions WHERE code = 'session.delete');
 
 INSERT INTO app.permissions (code, name, description)
+SELECT 'session.assign', 'Assign Session', 'Can assign sessions to users or teams'
+WHERE NOT EXISTS (SELECT 1 FROM app.permissions WHERE code = 'session.assign');
+
+INSERT INTO app.permissions (code, name, description)
 SELECT 'users.manage', 'Manage Users', 'Can manage organization users'
 WHERE NOT EXISTS (SELECT 1 FROM app.permissions WHERE code = 'users.manage');
 

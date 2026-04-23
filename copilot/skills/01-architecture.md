@@ -63,14 +63,22 @@ src/
     │   ├── organizations.service.ts
     │   ├── organizations.controller.ts
     │   └── organizations.routes.ts
-    └── devices/
-        ├── devices.types.ts       # DB row types + request/response interfaces
-        ├── devices.validation.ts  # Zod schemas for body + path params
-        ├── devices.repository.ts  # SQL: kits, hubs, pods, pairing history, access grants
-        ├── devices.mapper.ts      # DB rows → API shapes
-        ├── devices.service.ts     # Business logic + access-check helpers
-        ├── devices.controller.ts  # Thin HTTP handlers
-        └── devices.routes.ts      # Route wiring + dependency composition
+    ├── devices/
+    │   ├── devices.types.ts       # DB row types + request/response interfaces
+    │   ├── devices.validation.ts  # Zod schemas for body + path params
+    │   ├── devices.repository.ts  # SQL: kits, hubs, pods, pairing history, access grants
+    │   ├── devices.mapper.ts      # DB rows → API shapes
+    │   ├── devices.service.ts     # Business logic + access-check helpers
+    │   ├── devices.controller.ts  # Thin HTTP handlers
+    │   └── devices.routes.ts      # Route wiring + dependency composition
+    └── sessions/
+        ├── sessions.types.ts       # DB row types + request/response interfaces
+        ├── sessions.validation.ts  # Zod schemas: syncSessionSchema, assignSessionSchema, sessionIdParamSchema
+        ├── sessions.repository.ts  # SQL: insert session, pods, events, soft delete, audit log
+        ├── sessions.mapper.ts      # DB rows → SessionSummary / SessionDetail
+        ├── sessions.service.ts     # Business logic: sync, list, detail, assign, delete
+        ├── sessions.controller.ts  # Thin HTTP handlers
+        └── sessions.routes.ts      # Route wiring + dependency composition
 ```
 
 ---
@@ -101,6 +109,8 @@ export async function createApiRouter(): Promise<Router> {
     const router = Router();
     router.use('/auth', await createAuthRouter());
     router.use('/organizations', await createOrganizationsRouter());
+    router.use('/devices', await createDevicesRouter());
+    router.use('/sessions', await createSessionsRouter());
     return router;
 }
 ```
