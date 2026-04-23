@@ -107,8 +107,27 @@ These must be seeded via `database/queries/10.seed_esential_roles_and_perms.sql`
 | `GET /organizations/:id/me` | Must have an active membership — no bypass |
 | `GET .../permissions` | Can view any membership's permissions |
 | Write operations (add member, assign roles) | No membership required — permission bypassed |
+| `GET /sessions` | Sees ALL sessions across all orgs |
+| `GET /sessions/:id` | Can view any session |
 
-Super admin bypass is **always** via `actor.isSuperAdmin` from `req.user` — never inferred from DB state.
+## Session Visibility Model
+
+Session visibility is determined by effective permissions, not just membership.
+
+| Actor | Visibility |
+|-------|-----------|
+| Super Admin | All sessions (no org filter required) |
+| Active member with any `session.*` permission | All sessions in their org |
+| Active member without session permissions (Athlete) | Own sessions only: `assigned_to_user_id = me` OR `started_by_user_id = me` |
+| Active member with viewer scopes | Own sessions + sessions assigned to viewer-scope target users |
+
+**"Elevated"** is determined by checking `findEffectivePermissions()` for:
+`session.start`, `session.assign`, `session.end`, `session.delete`
+
+The elevated check is centralized in `SessionsService.isElevatedActor()`.
+The same logic must apply to both `GET /sessions` and `GET /sessions/:sessionId`.
+
+Viewer-scope access uses `app.viewer_access_scopes` (user-to-user only, no team scope in current schema).
 
 ---
 

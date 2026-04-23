@@ -2,10 +2,10 @@ import { Request, Response, NextFunction } from 'express';
 import { UnauthorizedError } from '../../shared/errors/http-errors.js';
 import { sendSuccess, sendSuccessWithMessage } from '../../shared/utils/response.js';
 import { SessionsService } from './sessions.service.js';
-import { listSessionsQuerySchema } from './sessions.validation.js';
 import {
     SyncSessionInput,
     AssignSessionInput,
+    ListSessionsFilters,
 } from './sessions.types.js';
 
 export class SessionsController {
@@ -23,15 +23,11 @@ export class SessionsController {
         } catch (err) { next(err); }
     };
 
-    // GET /sessions
+    // GET /sessions — query params validated by validate(listSessionsQuerySchema, 'query') in routes
     list = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
         try {
             if (!req.user) return next(new UnauthorizedError());
-
-            // Parse and validate query params inline (middleware supports body/params only)
-            const parsed = listSessionsQuerySchema.safeParse(req.query);
-            const filters = parsed.success ? parsed.data : {};
-
+            const filters = req.query as unknown as ListSessionsFilters;
             const sessions = await this.sessionsService.listSessions(filters, req.user);
             sendSuccess(res, { sessions });
         } catch (err) { next(err); }
@@ -74,4 +70,3 @@ export class SessionsController {
         } catch (err) { next(err); }
     };
 }
-

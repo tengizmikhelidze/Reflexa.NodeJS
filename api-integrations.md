@@ -985,6 +985,8 @@ Super admins may omit `organizationId` to receive all sessions.
 ?organizationId=<uuid>       required for non-super-admins
 ?assignedToUserId=<uuid>     optional filter
 ?teamId=<uuid>               optional filter
+?limit=<number>              optional, 1–200, default 50
+?offset=<number>             optional, default 0
 ```
 
 **Response — 200**

@@ -78,9 +78,12 @@ export function mapSessionDetail(
     pods: TrainingSessionActivePodRow[],
     events: TrainingSessionEventRow[]
 ): SessionDetail {
+    let configJson: Record<string, unknown> = {};
+    try { configJson = JSON.parse(row.config_json) as Record<string, unknown>; } catch { /* corrupt DB value — return empty object */ }
+
     return {
         ...mapSessionSummary(row),
-        configJson: JSON.parse(row.config_json) as Record<string, unknown>,
+        configJson,
         activePods: pods.map(mapActivePod),
         events:     events.map(mapSessionEvent),
     };

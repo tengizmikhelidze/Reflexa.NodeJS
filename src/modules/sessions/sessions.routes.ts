@@ -10,6 +10,7 @@ import {
     syncSessionSchema,
     assignSessionSchema,
     sessionIdParamSchema,
+    listSessionsQuerySchema,
 } from './sessions.validation.js';
 
 /**
@@ -37,8 +38,8 @@ export async function createSessionsRouter(): Promise<Router> {
         controller.sync
     );
 
-    // GET /sessions — list sessions (supports ?organizationId, ?assignedToUserId, ?teamId)
-    router.get('/', controller.list);
+    // GET /sessions — validates query params + applies default pagination
+    router.get('/', validate(listSessionsQuerySchema, 'query'), controller.list);
 
     // GET /sessions/:sessionId — get session detail with pods + events
     router.get(

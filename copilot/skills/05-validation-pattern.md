@@ -14,10 +14,25 @@ validate(schema)
 
 // Validate req.params
 validate(schema, 'params')
+
+// Validate req.query — use z.coerce.number() for numeric params
+validate(schema, 'query')
 ```
 
-On success: replaces `req.body` or `req.params` with the parsed/coerced value.
+On success: replaces `req.body`, `req.params`, or `req.query` with the parsed/coerced value.
 On failure: throws `ValidationError('Validation failed', { field: ['message'] })` → 400.
+
+### Query param schemas must use `z.coerce` for numbers
+
+```typescript
+export const listSessionsQuerySchema = z.object({
+    organizationId: z.string().uuid().optional(),
+    limit:          z.coerce.number().int().min(1).max(200).default(50),
+    offset:         z.coerce.number().int().min(0).default(0),
+});
+```
+
+Query string values are always strings — `z.coerce.number()` converts them before validation.
 
 ---
 
@@ -30,7 +45,10 @@ router.post('/', validate(createThingSchema), controller.create);
 // Params validation
 router.get('/:thingId', validate(thingIdParamSchema, 'params'), controller.getById);
 
-// Both — order: params first, then body
+// Query validation (with pagination)
+router.get('/', validate(listQuerySchema, 'query'), controller.list);
+
+// Both params + body — order: params first, then body
 router.post(
     '/:orgId/members',
     validate(orgIdParamSchema, 'params'),

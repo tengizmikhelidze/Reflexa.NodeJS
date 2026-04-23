@@ -66,9 +66,11 @@ export const assignSessionSchema = z.object({
 });
 
 export const listSessionsQuerySchema = z.object({
-    organizationId:   z.string().uuid().optional(),
-    assignedToUserId: z.string().uuid().optional(),
-    teamId:           z.string().uuid().optional(),
+    organizationId:   z.string().uuid('organizationId must be a valid UUID').optional(),
+    assignedToUserId: z.string().uuid('assignedToUserId must be a valid UUID').optional(),
+    teamId:           z.string().uuid('teamId must be a valid UUID').optional(),
+    limit:            z.coerce.number().int().min(1).max(200).default(50),
+    offset:           z.coerce.number().int().min(0).default(0),
 });
 
 // ─── Inferred Types ───────────────────────────────────────────────────────────

@@ -19,6 +19,9 @@ import {
     TrainingSessionRow,
 } from './sessions.types.js';
 
+/** Permission codes that grant elevated session visibility (all org sessions). */
+const ELEVATED_SESSION_PERMS = ['session.start', 'session.assign', 'session.end', 'session.delete'];
+
 export class SessionsService {
     constructor(
         private readonly sessionsRepo: SessionsRepository,
@@ -176,10 +179,13 @@ export class SessionsService {
     // ── List Sessions ─────────────────────────────────────────────────────────
 
     /**
-     * Lists non-deleted sessions.
+     * Visibility rules:
+     *   - Super admin:         all sessions (optional org/assignee/team filters)
+     *   - Elevated member:     all sessions in org (has any session.* permission)
+     *   - Restricted member:   only sessions assigned-to or started-by actor,
+     *                          plus sessions assigned to viewer-scope targets
      *
-     * Super admin: may filter by any org or see all.
-     * Regular user: must provide organizationId and must be an active member.
+     * organizationId is required for non-super-admins.
      */
     async listSessions(
         filters: ListSessionsFilters,
@@ -187,14 +193,26 @@ export class SessionsService {
     ): Promise<SessionSummary[]> {
         if (!actor.isSuperAdmin) {
             if (!filters.organizationId) {
-                throw new ForbiddenError(
-                    'organizationId is required when listing sessions.'
-                );
+                throw new ForbiddenError('organizationId is required when listing sessions.');
             }
             await this.requireActiveMember(filters.organizationId, actor);
         }
 
-        const rows = await this.sessionsRepo.findSessions(filters);
+        const elevated = actor.isSuperAdmin
+            ? true
+            : await this.isElevatedActor(filters.organizationId!, actor);
+
+        const rows = await this.sessionsRepo.findSessions({
+            organizationId:   filters.organizationId,
+            actorUserId:      actor.userId,
+            elevated,
+            isSuperAdmin:     actor.isSuperAdmin,
+            assignedToUserId: filters.assignedToUserId,
+            teamId:           filters.teamId,
+            limit:            filters.limit  ?? 50,
+            offset:           filters.offset ?? 0,
+        });
+
         return rows.map(mapSessionSummary);
     }
 
@@ -209,7 +227,7 @@ export class SessionsService {
         actor: AuthUser
     ): Promise<SessionDetail> {
         const row = await this.requireSessionExists(sessionId);
-        await this.requireOrgAccess(row, actor);
+        await this.requireCanSeeSession(row, actor);
 
         const [pods, events] = await Promise.all([
             this.sessionsRepo.findActivePodsBySessionId(sessionId),
@@ -298,28 +316,65 @@ export class SessionsService {
     }
 
     /**
-     * Throws ForbiddenError if the actor is not an active member of the org.
-     * Super admin bypasses.
+     * Returns true if the actor holds any elevated session permission
+     * (session.start, session.assign, session.end, session.delete).
+     * These correspond to ORG_ADMIN / TRAINER level access.
      */
-    private async requireActiveMember(
-        organizationId: string,
+    private async isElevatedActor(organizationId: string, actor: AuthUser): Promise<boolean> {
+        if (actor.isSuperAdmin) return true;
+        const permissions = await this.orgsRepo.findEffectivePermissions(organizationId, actor.userId);
+        return ELEVATED_SESSION_PERMS.some(p => permissions.includes(p));
+    }
+
+    /**
+     * Enforces session-level visibility for GET detail.
+     *
+     * Super admin        → always passes
+     * Elevated member    → passes for any session in their org
+     * Restricted member  → passes only if:
+     *     - assigned_to_user_id == actorUserId  (assigned to me)
+     *     - started_by_user_id  == actorUserId  (started by me)
+     *     - viewer_access_scopes grants actor visibility to assigned_to_user
+     */
+    private async requireCanSeeSession(
+        row: TrainingSessionRow,
         actor: AuthUser
     ): Promise<void> {
         if (actor.isSuperAdmin) return;
 
+        const membership = await this.orgsRepo.findMembership(row.organization_id, actor.userId);
+        if (!membership || membership.status !== 'ACTIVE' || membership.left_at !== null) {
+            throw new ForbiddenError('You do not have access to this session.');
+        }
+
+        const elevated = await this.isElevatedActor(row.organization_id, actor);
+        if (elevated) return;
+
+        // Self-access: assigned to me or started by me
+        if (row.assigned_to_user_id === actor.userId) return;
+        if (row.started_by_user_id  === actor.userId) return;
+
+        // Viewer scope: actor has explicit visibility grant for the session's assignee
+        if (row.assigned_to_user_id) {
+            const hasScope = await this.sessionsRepo.viewerHasScope(
+                row.organization_id,
+                actor.userId,
+                row.assigned_to_user_id
+            );
+            if (hasScope) return;
+        }
+
+        throw new ForbiddenError('You do not have access to this session.');
+    }
+
+    private async requireActiveMember(organizationId: string, actor: AuthUser): Promise<void> {
+        if (actor.isSuperAdmin) return;
         const membership = await this.orgsRepo.findMembership(organizationId, actor.userId);
         if (!membership || membership.status !== 'ACTIVE' || membership.left_at !== null) {
-            throw new ForbiddenError(
-                'You are not an active member of this organization.'
-            );
+            throw new ForbiddenError('You are not an active member of this organization.');
         }
     }
 
-    /**
-     * Throws ForbiddenError if the actor doesn't have the given permission
-     * on the session's organization.
-     * Super admin bypasses.
-     */
     private async requirePermission(
         organizationId: string,
         actor: AuthUser,
@@ -329,42 +384,12 @@ export class SessionsService {
 
         const membership = await this.orgsRepo.findMembership(organizationId, actor.userId);
         if (!membership || membership.status !== 'ACTIVE' || membership.left_at !== null) {
-            throw new ForbiddenError(
-                'You are not an active member of this organization.'
-            );
+            throw new ForbiddenError('You are not an active member of this organization.');
         }
 
-        const permissions = await this.orgsRepo.findEffectivePermissions(
-            organizationId,
-            actor.userId
-        );
-
+        const permissions = await this.orgsRepo.findEffectivePermissions(organizationId, actor.userId);
         if (!permissions.includes(permissionCode)) {
-            throw new ForbiddenError(
-                `You do not have the required permission: ${permissionCode}`
-            );
-        }
-    }
-
-    /**
-     * Throws ForbiddenError if the actor does not have org access for the session.
-     * Used for read operations (list / detail).
-     * Super admin bypasses. Active members always pass.
-     */
-    private async requireOrgAccess(
-        row: TrainingSessionRow,
-        actor: AuthUser
-    ): Promise<void> {
-        if (actor.isSuperAdmin) return;
-
-        const membership = await this.orgsRepo.findMembership(
-            row.organization_id,
-            actor.userId
-        );
-        if (!membership || membership.status !== 'ACTIVE' || membership.left_at !== null) {
-            throw new ForbiddenError('You do not have access to this session.');
+            throw new ForbiddenError(`You do not have the required permission: ${permissionCode}`);
         }
     }
 }
-
-

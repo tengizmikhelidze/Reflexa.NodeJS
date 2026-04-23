@@ -125,6 +125,8 @@ export interface ListSessionsFilters {
     organizationId?: string;
     assignedToUserId?: string;
     teamId?: string;
+    limit?: number;   // default 50, max 200
+    offset?: number;  // default 0
 }
 
 export interface AssignSessionInput {

@@ -261,44 +261,95 @@ export class SessionsRepository {
     // ── List Sessions ─────────────────────────────────────────────────────────
 
     /**
-     * Returns non-deleted sessions matching the given filters.
-     * Super admin with no filters returns all sessions.
+a     * Visibility-aware session list.
+     *
+     * elevated=true  (org admin / trainer with session.start or session.assign):
+     *   → all non-deleted sessions in the org, optional filter by assignee/team
+     *
+     * elevated=false (athlete / viewer):
+     *   → only sessions where:
+     *       - assigned_to_user_id = actorUserId   (assigned to me)
+     *       - started_by_user_id  = actorUserId   (started by me)
+     *       - assigned_to_user_id is in viewer_access_scopes for this actor/org
+     *
+     * isSuperAdmin=true:
+     *   → all non-deleted sessions, optional org / assignee / team filters
+     *
+     * Always paginates: OFFSET @offset ROWS FETCH NEXT @limit ROWS ONLY
      */
-    async findSessions(filters: ListSessionsFilters): Promise<TrainingSessionRow[]> {
+    async findSessions(opts: {
+        organizationId?: string;
+        actorUserId?: string;
+        elevated?: boolean;
+        isSuperAdmin?: boolean;
+        assignedToUserId?: string;
+        teamId?: string;
+        limit: number;
+        offset: number;
+    }): Promise<TrainingSessionRow[]> {
         const req = this.pool.request();
+        req.input('limit',  sql.Int, opts.limit);
+        req.input('offset', sql.Int, opts.offset);
+
+        const baseCols = `
+            ts.id, ts.organization_id, ts.device_kit_id, ts.hub_device_id,
+            ts.started_by_user_id, ts.assigned_to_user_id, ts.assigned_by_user_id, ts.team_id,
+            ts.origin, ts.sync_status, ts.client_session_id,
+            ts.status, ts.end_mode, ts.preset_id, ts.training_mode, ts.config_json,
+            ts.session_started_at, ts.session_ended_at, ts.duration_ms,
+            ts.score, ts.hit_count, ts.miss_count, ts.accuracy_percent,
+            ts.avg_reaction_ms, ts.best_reaction_ms, ts.worst_reaction_ms,
+            ts.active_pod_count, ts.total_events_count, ts.notes,
+            ts.created_at, ts.updated_at, ts.deleted_at
+        `;
+        const pagination = `ORDER BY ts.session_started_at DESC
+            OFFSET @offset ROWS FETCH NEXT @limit ROWS ONLY`;
+
         const conditions: string[] = ['ts.deleted_at IS NULL'];
 
-        if (filters.organizationId) {
-            req.input('organizationId', sql.UniqueIdentifier, filters.organizationId);
+        if (opts.organizationId) {
+            req.input('organizationId', sql.UniqueIdentifier, opts.organizationId);
             conditions.push('ts.organization_id = @organizationId');
         }
-        if (filters.assignedToUserId) {
-            req.input('assignedToUserId', sql.UniqueIdentifier, filters.assignedToUserId);
+        if (opts.assignedToUserId) {
+            req.input('assignedToUserId', sql.UniqueIdentifier, opts.assignedToUserId);
             conditions.push('ts.assigned_to_user_id = @assignedToUserId');
         }
-        if (filters.teamId) {
-            req.input('teamId', sql.UniqueIdentifier, filters.teamId);
+        if (opts.teamId) {
+            req.input('teamId', sql.UniqueIdentifier, opts.teamId);
             conditions.push('ts.team_id = @teamId');
         }
 
-        const where = conditions.join(' AND ');
+        let visibilityClause = '';
 
-        const result = await req.query<TrainingSessionRow>(`
-            SELECT
-                ts.id, ts.organization_id, ts.device_kit_id, ts.hub_device_id,
-                ts.started_by_user_id, ts.assigned_to_user_id, ts.assigned_by_user_id, ts.team_id,
-                ts.origin, ts.sync_status, ts.client_session_id,
-                ts.status, ts.end_mode, ts.preset_id, ts.training_mode, ts.config_json,
-                ts.session_started_at, ts.session_ended_at, ts.duration_ms,
-                ts.score, ts.hit_count, ts.miss_count, ts.accuracy_percent,
-                ts.avg_reaction_ms, ts.best_reaction_ms, ts.worst_reaction_ms,
-                ts.active_pod_count, ts.total_events_count, ts.notes,
-                ts.created_at, ts.updated_at, ts.deleted_at
+        if (!opts.isSuperAdmin && !opts.elevated) {
+            // Athlete / Viewer: restrict to own or viewer-scoped sessions
+            req.input('actorUserId', sql.UniqueIdentifier, opts.actorUserId!);
+            req.input('actorOrgId',  sql.UniqueIdentifier, opts.organizationId!);
+            visibilityClause = `
+                AND (
+                    ts.assigned_to_user_id = @actorUserId
+                    OR ts.started_by_user_id = @actorUserId
+                    OR ts.assigned_to_user_id IN (
+                        SELECT vas.target_user_id
+                        FROM app.viewer_access_scopes vas
+                        WHERE vas.organization_id = @actorOrgId
+                          AND vas.viewer_user_id  = @actorUserId
+                    )
+                )
+            `;
+        }
+
+        const where = conditions.join(' AND ');
+        const query = `
+            SELECT ${baseCols}
             FROM app.training_sessions ts
             WHERE ${where}
-            ORDER BY ts.session_started_at DESC
-        `);
+            ${visibilityClause}
+            ${pagination}
+        `;
 
+        const result = await req.query<TrainingSessionRow>(query);
         return result.recordset;
     }
 
@@ -486,6 +537,30 @@ export class SessionsRepository {
                   AND organization_id = @organizationId
                   AND status          = N'ACTIVE'
                   AND left_at         IS NULL
+            `);
+        return (result.recordset[0]?.n ?? 0) > 0;
+    }
+
+    /**
+     * Returns true if viewerUserId has an explicit viewer_access_scope grant
+     * for targetUserId within the organization.
+     */
+    async viewerHasScope(
+        organizationId: string,
+        viewerUserId: string,
+        targetUserId: string
+    ): Promise<boolean> {
+        const result = await this.pool
+            .request()
+            .input('organizationId', sql.UniqueIdentifier, organizationId)
+            .input('viewerUserId',   sql.UniqueIdentifier, viewerUserId)
+            .input('targetUserId',   sql.UniqueIdentifier, targetUserId)
+            .query<{ n: number }>(`
+                SELECT COUNT(1) AS n
+                FROM app.viewer_access_scopes
+                WHERE organization_id = @organizationId
+                  AND viewer_user_id  = @viewerUserId
+                  AND target_user_id  = @targetUserId
             `);
         return (result.recordset[0]?.n ?? 0) > 0;
     }
