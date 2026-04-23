@@ -30,6 +30,9 @@ Load the relevant file(s) before implementing any feature.
 | Organizations | `/api/organizations` | `users.manage` |
 | Devices | `/api/devices` | `devices.manage` |
 | Sessions | `/api/sessions` | `session.assign`, `session.delete` |
+| Presets | `/api/presets` | `presets.manage` (org scope only) |
+| Teams | `/api/teams` | `teams.manage` |
+| Viewer Scopes | `/api/viewer-scopes` | `viewer.scope.manage` |
 
 ---
 

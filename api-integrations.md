@@ -15,10 +15,16 @@ All responses follow a consistent envelope shape (see [Response Shape](#response
 - [Organization Endpoints](#organization-endpoints)
 - [Device Endpoints](#device-endpoints)
 - [Session Endpoints](#session-endpoints)
+- [Preset Endpoints](#preset-endpoints)
+- [Team Endpoints](#team-endpoints)
+- [Viewer Scope Endpoints](#viewer-scope-endpoints)
 - [Shared Types](#shared-types)
 - [Shared Organization Types](#shared-organization-types)
 - [Shared Device Types](#shared-device-types)
 - [Shared Session Types](#shared-session-types)
+- [Shared Preset Types](#shared-preset-types)
+- [Shared Team Types](#shared-team-types)
+- [Shared Viewer Scope Types](#shared-viewer-scope-types)
 - [Integration Guide](#integration-guide)
 - [Health Check](#health-check)
 - [Error Reference](#error-reference)
@@ -1164,6 +1170,426 @@ interface SessionDetail extends SessionSummary {
 | Super admin | ✅ | ✅ (all) | ✅ | ✅ |
 | Active org member | ✅ | ✅ (org sessions) | Requires `session.assign` | Requires `session.delete` |
 | Non-member | ❌ | ❌ | ❌ | ❌ |
+
+---
+
+## Preset Endpoints
+
+All preset endpoints require `Authorization: Bearer <accessToken>`.
+
+---
+
+### POST `/presets` 🔒
+
+Create a preset. Supports both `USER` (personal) and `ORGANIZATION` scopes.
+For `ORGANIZATION` scope, actor must be an active org member with `presets.manage`.
+
+**Request body**
+```typescript
+{
+  scope:           'USER' | 'ORGANIZATION';
+  organizationId?: string;   // required when scope = ORGANIZATION
+  name:            string;   // max 150 chars
+  description?:    string;   // max 500 chars
+  configJson:      Record<string, unknown>;
+}
+```
+
+**Response — 201**
+```typescript
+{ success: true; data: { preset: PresetDetail } }
+```
+
+**Error cases**
+| Status | Message |
+|--------|---------|
+| 400 | Validation failed / organizationId required for ORGANIZATION scope |
+| 403 | Not an active org member or missing `presets.manage` |
+
+---
+
+### GET `/presets` 🔒
+
+List presets visible to the actor:
+- Own personal (`USER`) presets
+- Org presets from orgs the actor is an **active member** of
+
+Super admins see all non-deleted presets.
+
+**Query parameters**
+```
+?scope=USER|ORGANIZATION     optional filter
+?organizationId=<uuid>       optional filter
+?createdByUserId=<uuid>      optional filter
+```
+
+**Response — 200**
+```typescript
+{ success: true; data: { presets: PresetSummary[] } }
+```
+
+---
+
+### GET `/presets/:presetId` 🔒
+
+Get preset detail (includes `configJson`). Access rules:
+- `USER` scope: owner only
+- `ORGANIZATION` scope: any active org member
+
+**Response — 200**
+```typescript
+{ success: true; data: { preset: PresetDetail } }
+```
+
+**Error cases**
+| Status | Message |
+|--------|---------|
+| 400 | presetId is not a valid UUID |
+| 403 | No access to this preset |
+| 404 | Preset not found |
+
+---
+
+### PATCH `/presets/:presetId` 🔒
+
+Update a preset's `name`, `description`, and/or `configJson`. At least one field required.
+- `USER` scope: owner only
+- `ORGANIZATION` scope: requires `presets.manage`
+
+**Request body**
+```typescript
+{
+  name?:        string;                      // max 150 chars
+  description?: string | null;              // null to clear
+  configJson?:  Record<string, unknown>;
+}
+```
+
+**Response — 200**
+```typescript
+{ success: true; data: { preset: PresetDetail } }
+```
+
+**Error cases**
+| Status | Message |
+|--------|---------|
+| 400 | Validation failed |
+| 403 | No write access to this preset |
+| 404 | Preset not found |
+
+---
+
+### DELETE `/presets/:presetId` 🔒
+
+Soft-delete a preset. Idempotent — deleting an already-deleted preset returns 200.
+- `USER` scope: owner only
+- `ORGANIZATION` scope: requires `presets.manage`
+
+**Response — 200**
+```typescript
+{ success: true; data: null }
+```
+
+**Error cases**
+| Status | Message |
+|--------|---------|
+| 400 | presetId is not a valid UUID |
+| 403 | No write access to this preset |
+
+---
+
+## Shared Preset Types
+
+### `PresetSummary`
+```typescript
+interface PresetSummary {
+  id:              string;
+  organizationId:  string | null;  // null for USER scope
+  createdByUserId: string;
+  scope:           'USER' | 'ORGANIZATION';
+  name:            string;
+  description:     string | null;
+  createdAt:       string;  // ISO 8601
+  updatedAt:       string;  // ISO 8601
+}
+```
+
+### `PresetDetail`
+Extends `PresetSummary` with parsed config.
+
+```typescript
+interface PresetDetail extends PresetSummary {
+  configJson: Record<string, unknown>;
+}
+```
+
+### Preset Access Rules
+
+| Who | Can read USER preset | Can read ORG preset | Can write USER preset | Can write ORG preset |
+|-----|---------------------|---------------------|-----------------------|----------------------|
+| Super admin | ✅ | ✅ | ✅ | ✅ |
+| Owner | ✅ | — | ✅ | — |
+| Active org member | — | ✅ | — | Requires `presets.manage` |
+
+---
+
+## Team Endpoints
+
+All team endpoints require `Authorization: Bearer <accessToken>`.
+
+---
+
+### POST `/teams` 🔒
+
+Create a team within an organization. Requires `teams.manage` permission.
+Team names must be unique within the organization.
+
+**Request body**
+```typescript
+{
+  organizationId: string;   // required, UUID
+  name:           string;   // required, max 150 — unique per org
+  description?:   string;   // optional, max 500
+}
+```
+
+**Response — 201**
+```typescript
+{ success: true; data: { team: TeamDetail } }
+```
+
+**Error cases**
+| Status | Message |
+|--------|---------|
+| 400 | Validation failed |
+| 403 | Not an active org member or missing `teams.manage` |
+| 409 | A team with this name already exists in the organization |
+
+---
+
+### GET `/teams` 🔒
+
+List teams. Regular users see teams from orgs they are active members of.
+Super admins see all non-deleted teams.
+
+**Query parameters**
+```
+?organizationId=<uuid>   optional filter
+```
+
+**Response — 200**
+```typescript
+{ success: true; data: { teams: TeamSummary[] } }
+```
+
+---
+
+### GET `/teams/:teamId` 🔒
+
+Get team detail including member count. Actor must be an active member of the team's org.
+
+**Response — 200**
+```typescript
+{ success: true; data: { team: TeamDetail } }
+```
+
+**Error cases**
+| Status | Message |
+|--------|---------|
+| 400 | teamId is not a valid UUID |
+| 403 | Not an active member of the organization |
+| 404 | Team not found |
+
+---
+
+### POST `/teams/:teamId/members` 🔒
+
+Add a user to a team. Requires `teams.manage`. The user must be an active member of the team's organization.
+
+**Request body**
+```typescript
+{
+  userId: string;  // required, UUID — must be an active org member
+}
+```
+
+**Response — 201**
+```typescript
+{ success: true; data: { members: TeamMemberSummary[] } }
+```
+
+**Error cases**
+| Status | Message |
+|--------|---------|
+| 400 | Validation failed |
+| 403 | Missing `teams.manage` permission |
+| 404 | Team not found / user is not an active org member |
+| 409 | User is already a member of the team |
+
+---
+
+### GET `/teams/:teamId/members` 🔒
+
+List team members with user details. Actor must be an active org member.
+
+**Response — 200**
+```typescript
+{ success: true; data: { members: TeamMemberSummary[] } }
+```
+
+---
+
+### DELETE `/teams/:teamId/members/:userId` 🔒
+
+Remove a user from a team. Requires `teams.manage`. Idempotent — removing a non-member silently succeeds.
+This only removes the team membership, not the organization membership.
+
+**Response — 200**
+```typescript
+{ success: true; data: null }
+```
+
+**Error cases**
+| Status | Message |
+|--------|---------|
+| 400 | teamId or userId is not a valid UUID |
+| 403 | Missing `teams.manage` permission |
+| 404 | Team not found |
+
+---
+
+## Shared Team Types
+
+### `TeamSummary`
+```typescript
+interface TeamSummary {
+  id:             string;
+  organizationId: string;
+  name:           string;
+  description:    string | null;
+  createdAt:      string;  // ISO 8601
+  updatedAt:      string;  // ISO 8601
+}
+```
+
+### `TeamDetail`
+```typescript
+interface TeamDetail extends TeamSummary {
+  memberCount: number;
+}
+```
+
+### `TeamMemberSummary`
+```typescript
+interface TeamMemberSummary {
+  id:          string;  // team_membership id
+  teamId:      string;
+  userId:      string;
+  email:       string;
+  firstName:   string | null;
+  lastName:    string | null;
+  displayName: string | null;
+  joinedAt:    string;  // ISO 8601
+}
+```
+
+---
+
+## Viewer Scope Endpoints
+
+All viewer scope endpoints require `Authorization: Bearer <accessToken>`.
+
+> **Schema note:** The current schema (`app.viewer_access_scopes`) supports only
+> **user-level** visibility (`viewer_user_id → target_user_id`).
+> Team-scoped visibility is **not** supported by the current schema.
+
+---
+
+### POST `/viewer-scopes` 🔒
+
+Grant a viewer user visibility to a target user's data. Requires `viewer.scope.manage`.
+Both viewer and target must be active members of the specified organization.
+Granting the same `(org, viewer, target)` pair twice returns **409**.
+
+**Request body**
+```typescript
+{
+  organizationId: string;   // required, UUID
+  viewerUserId:   string;   // required, UUID — must be active org member
+  targetUserId:   string;   // required, UUID — must be active org member, != viewerUserId
+}
+```
+
+**Response — 201**
+```typescript
+{ success: true; data: { scope: ViewerScopeSummary } }
+```
+
+**Error cases**
+| Status | Message |
+|--------|---------|
+| 400 | Validation failed / viewerUserId equals targetUserId |
+| 403 | Missing `viewer.scope.manage` permission |
+| 404 | Viewer or target user is not an active org member |
+| 409 | Viewer already has access to this target user |
+
+---
+
+### GET `/viewer-scopes` 🔒
+
+List viewer scopes. Requires `viewer.scope.manage`.
+Regular users must supply `organizationId`.
+Super admins may omit it to see all scopes.
+
+**Query parameters**
+```
+?organizationId=<uuid>    required for non-super-admins
+?viewerUserId=<uuid>      optional filter
+```
+
+**Response — 200**
+```typescript
+{ success: true; data: { scopes: ViewerScopeSummary[] } }
+```
+
+**Error cases**
+| Status | Message |
+|--------|---------|
+| 403 | organizationId not provided (non-super-admin) / missing `viewer.scope.manage` |
+
+---
+
+### DELETE `/viewer-scopes/:scopeId` 🔒
+
+Revoke a viewer access scope. Requires `viewer.scope.manage` on the scope's organization.
+Idempotent — revoking an already-deleted scope silently succeeds.
+
+**Response — 200**
+```typescript
+{ success: true; data: null }
+```
+
+**Error cases**
+| Status | Message |
+|--------|---------|
+| 400 | scopeId is not a valid UUID |
+| 403 | Missing `viewer.scope.manage` permission |
+
+---
+
+## Shared Viewer Scope Types
+
+### `ViewerScopeSummary`
+```typescript
+interface ViewerScopeSummary {
+  id:              string;
+  organizationId:  string;
+  viewerUserId:    string;
+  targetUserId:    string;
+  grantedByUserId: string | null;
+  createdAt:       string;  // ISO 8601
+}
+```
 
 ---
 

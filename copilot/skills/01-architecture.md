@@ -71,14 +71,38 @@ src/
     │   ├── devices.service.ts     # Business logic + access-check helpers
     │   ├── devices.controller.ts  # Thin HTTP handlers
     │   └── devices.routes.ts      # Route wiring + dependency composition
-    └── sessions/
-        ├── sessions.types.ts       # DB row types + request/response interfaces
-        ├── sessions.validation.ts  # Zod schemas: syncSessionSchema, assignSessionSchema, sessionIdParamSchema
-        ├── sessions.repository.ts  # SQL: insert session, pods, events, soft delete, audit log
-        ├── sessions.mapper.ts      # DB rows → SessionSummary / SessionDetail
-        ├── sessions.service.ts     # Business logic: sync, list, detail, assign, delete
-        ├── sessions.controller.ts  # Thin HTTP handlers
-        └── sessions.routes.ts      # Route wiring + dependency composition
+    ├── sessions/
+    │   ├── sessions.types.ts       # DB row types + request/response interfaces
+    │   ├── sessions.validation.ts  # Zod schemas: syncSessionSchema, assignSessionSchema, sessionIdParamSchema
+    │   ├── sessions.repository.ts  # SQL: insert session, pods, events, soft delete, audit log
+    │   ├── sessions.mapper.ts      # DB rows → SessionSummary / SessionDetail
+    │   ├── sessions.service.ts     # Business logic: sync, list, detail, assign, delete
+    │   ├── sessions.controller.ts  # Thin HTTP handlers
+    │   └── sessions.routes.ts      # Route wiring + dependency composition
+    ├── presets/
+    │   ├── presets.types.ts        # DB row types + PresetSummary / PresetDetail (scope: USER | ORGANIZATION)
+    │   ├── presets.validation.ts   # createPresetSchema, updatePresetSchema, presetIdParamSchema
+    │   ├── presets.repository.ts   # SQL: create, findById, findMany (visibility-aware), update, softDelete
+    │   ├── presets.mapper.ts       # DB rows → PresetSummary / PresetDetail (parses config_json)
+    │   ├── presets.service.ts      # Business logic: owner/org access, presets.manage for org scope
+    │   ├── presets.controller.ts   # Thin HTTP handlers
+    │   └── presets.routes.ts       # Route wiring
+    ├── teams/
+    │   ├── teams.types.ts          # DB row types + TeamSummary / TeamDetail / TeamMemberSummary
+    │   ├── teams.validation.ts     # createTeamSchema, addTeamMemberSchema, teamIdParamSchema, teamMemberParamSchema
+    │   ├── teams.repository.ts     # SQL: create, findMany, countMembers, addMember, removeMember, findMembers
+    │   ├── teams.mapper.ts         # DB rows → TeamSummary / TeamDetail
+    │   ├── teams.service.ts        # Business logic: teams.manage permission, org-member-only team access
+    │   ├── teams.controller.ts     # Thin HTTP handlers
+    │   └── teams.routes.ts         # Route wiring
+    └── viewer_scopes/
+        ├── viewer-scopes.types.ts       # DB row types + ViewerScopeSummary
+        ├── viewer-scopes.validation.ts  # createViewerScopeSchema, scopeIdParamSchema
+        ├── viewer-scopes.repository.ts  # SQL: create, findById, findDuplicate, findMany, delete
+        ├── viewer-scopes.mapper.ts      # DB rows → ViewerScopeSummary
+        ├── viewer-scopes.service.ts     # Business logic: viewer.scope.manage, org-member validation
+        ├── viewer-scopes.controller.ts  # Thin HTTP handlers
+        └── viewer-scopes.routes.ts      # Route wiring
 ```
 
 ---
@@ -107,10 +131,13 @@ All module routers are async factory functions (they need the DB pool):
 // routes/index.ts
 export async function createApiRouter(): Promise<Router> {
     const router = Router();
-    router.use('/auth', await createAuthRouter());
+    router.use('/auth',          await createAuthRouter());
     router.use('/organizations', await createOrganizationsRouter());
-    router.use('/devices', await createDevicesRouter());
-    router.use('/sessions', await createSessionsRouter());
+    router.use('/devices',       await createDevicesRouter());
+    router.use('/sessions',      await createSessionsRouter());
+    router.use('/presets',       await createPresetsRouter());
+    router.use('/teams',         await createTeamsRouter());
+    router.use('/viewer-scopes', await createViewerScopesRouter());
     return router;
 }
 ```
