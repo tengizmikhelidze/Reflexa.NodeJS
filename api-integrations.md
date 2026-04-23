@@ -579,6 +579,306 @@ interface MemberWithRoles {
 
 ---
 
+## Device Endpoints
+
+All device endpoints require `Authorization: Bearer <accessToken>`.
+
+---
+
+### POST `/devices/kits` 🔒
+
+Create a new device kit. Requires org-level `devices.manage` permission. Creator becomes `owner_user_id`.
+
+**Request body**
+```typescript
+{
+  organizationId: string;  // required — UUID of the owning organization
+  name: string;            // required, max 150 chars
+  code: string;            // required, unique, lowercase letters/numbers/hyphens only, max 100
+  description?: string;    // optional, max 500 chars
+  maxPods?: number;        // optional, default 20, max 200
+}
+```
+
+**Response — 201**
+```typescript
+{ success: true; data: { kit: DeviceKitSummary } }
+```
+
+**Error cases**
+
+| Status | Message |
+|--------|---------|
+| 400 | Validation failed |
+| 403 | Not an active org member or missing `devices.manage` |
+| 404 | Organization not found |
+| 409 | `"A device kit with code '...' already exists."` |
+
+---
+
+### GET `/devices/kits` 🔒
+
+List device kits visible to the current user (owned + shared + org-member kits).
+Super admins receive all non-deleted kits.
+
+**Response — 200**
+```typescript
+{ success: true; data: { kits: DeviceKitSummary[] } }
+```
+
+---
+
+### GET `/devices/kits/:deviceKitId` 🔒
+
+Get detailed info for a kit — includes hub and pod count. Requires view access.
+
+**Response — 200**
+```typescript
+{ success: true; data: { kit: DeviceKitDetail } }
+```
+
+**Error cases**
+
+| Status | Message |
+|--------|---------|
+| 400 | deviceKitId is not a valid UUID |
+| 403 | No view access to this kit |
+| 404 | Device kit not found |
+
+---
+
+### POST `/devices/kits/:deviceKitId/access` 🔒
+
+Grant or update kit-level access for a user. If a row already exists it is updated (upsert).
+Requires manage access on the kit.
+
+**Request body**
+```typescript
+{
+  userId: string;      // required — UUID of the user to grant access to
+  canOperate: boolean; // required
+  canManage: boolean;  // required
+}
+```
+
+**Response — 201**
+```typescript
+{ success: true; data: { access: KitAccessGrant } }
+```
+
+**Error cases**
+
+| Status | Message |
+|--------|---------|
+| 400 | Validation failed |
+| 403 | No manage access to this kit |
+| 404 | Device kit not found |
+
+---
+
+### GET `/devices/kits/:deviceKitId/access` 🔒
+
+List all user access grants for a kit. Requires manage access.
+
+**Response — 200**
+```typescript
+{ success: true; data: { accessGrants: KitAccessGrant[] } }
+```
+
+---
+
+### POST `/devices/kits/:deviceKitId/hub` 🔒
+
+Register a hub for a kit. Enforces one hub per kit — returns 409 if one already exists.
+Requires manage access on the kit.
+
+**Request body**
+```typescript
+{
+  hardwareUid: string;      // required, unique across all hubs, max 100
+  serialNumber?: string;    // optional
+  firmwareVersion?: string; // optional
+  bluetoothName?: string;   // optional
+}
+```
+
+**Response — 201**
+```typescript
+{ success: true; data: { hub: HubSummary } }
+```
+
+**Error cases**
+
+| Status | Message |
+|--------|---------|
+| 400 | Validation failed |
+| 403 | No manage access |
+| 404 | Device kit not found |
+| 409 | `"This device kit already has a hub registered."` |
+| 409 | `"A hub with hardware UID '...' is already registered to another kit."` |
+
+---
+
+### POST `/devices/kits/:deviceKitId/pods` 🔒
+
+Register one or more pods to a kit. All-or-nothing — any conflict rejects the whole batch.
+Requires manage access on the kit.
+
+**Decision per pod hardware UID:**
+- Not seen before → create pod + pairing history
+- Exists, unassigned (`current_device_kit_id = null`) → assign + pairing history
+- Exists, already in **this** kit → **409**
+- Exists, in **another** kit → **409** (use `/pods/:podId/reassign` instead)
+
+**Request body**
+```typescript
+{
+  pods: Array<{
+    hardwareUid: string;      // required, unique, max 100
+    serialNumber?: string;
+    firmwareVersion?: string;
+    displayName?: string;
+    logicalIndex?: number;    // optional slot number within kit
+  }>;
+}
+```
+
+**Response — 201**
+```typescript
+{ success: true; data: { pods: PodSummary[] } }
+```
+
+**Error cases**
+
+| Status | Message |
+|--------|---------|
+| 400 | Validation failed |
+| 403 | No manage access |
+| 404 | Device kit not found |
+| 409 | Pod already assigned (here or elsewhere) |
+
+---
+
+### GET `/devices/kits/:deviceKitId/pods` 🔒
+
+List active pods currently assigned to a kit. Requires view access.
+
+**Response — 200**
+```typescript
+{ success: true; data: { pods: PodSummary[] } }
+```
+
+---
+
+### POST `/devices/pods/:podId/reassign` 🔒
+
+Explicitly move a pod from its current kit to a new kit. Deliberate audited action — not silent.
+Requires manage access on **both** the source and target kits.
+
+Closes active pairing history on source kit. Opens new pairing history on target kit.
+
+**Request body**
+```typescript
+{
+  targetDeviceKitId: string;  // required — UUID of the destination kit
+}
+```
+
+**Response — 200**
+```typescript
+{ success: true; data: { pod: PodSummary } }
+```
+
+**Error cases**
+
+| Status | Message |
+|--------|---------|
+| 400 | Validation failed |
+| 403 | No manage access on source or target kit |
+| 404 | Pod not found / target kit not found |
+| 409 | Pod already in target kit / pod not currently assigned |
+
+---
+
+## Shared Device Types
+
+### `DeviceKitSummary`
+```typescript
+interface DeviceKitSummary {
+  id: string;
+  organizationId: string;
+  name: string;
+  code: string;
+  description: string | null;
+  ownerUserId: string | null;
+  maxPods: number;
+  createdAt: string;  // ISO 8601
+}
+```
+
+### `DeviceKitDetail`
+```typescript
+interface DeviceKitDetail extends DeviceKitSummary {
+  hub: HubSummary | null;
+  podCount: number;
+}
+```
+
+### `HubSummary`
+```typescript
+interface HubSummary {
+  id: string;
+  hardwareUid: string;
+  serialNumber: string | null;
+  firmwareVersion: string | null;
+  bluetoothName: string | null;
+  isActive: boolean;
+  lastSeenAt: string | null;  // ISO 8601
+}
+```
+
+### `PodSummary`
+```typescript
+interface PodSummary {
+  id: string;
+  hardwareUid: string;
+  serialNumber: string | null;
+  firmwareVersion: string | null;
+  currentDeviceKitId: string | null;
+  displayName: string | null;
+  logicalIndex: number | null;
+  batteryPercent: number | null;
+  batteryLevel: string | null;  // "HIGH" | "MEDIUM" | "LOW" | null
+  isActive: boolean;
+  lastSeenAt: string | null;  // ISO 8601
+}
+```
+
+### `KitAccessGrant`
+```typescript
+interface KitAccessGrant {
+  id: string;
+  deviceKitId: string;
+  userId: string;
+  canOperate: boolean;
+  canManage: boolean;
+  grantedByUserId: string | null;
+  createdAt: string;  // ISO 8601
+}
+```
+
+### Device Permission Rules
+
+| Who | Can view kits | Can manage kits |
+|-----|--------------|-----------------|
+| Super admin | All kits | All kits |
+| Org member with `devices.manage` | All org kits | All org kits |
+| Active org member (any role) | Org kits | ❌ |
+| User with `can_manage = true` on kit | That kit | That kit |
+| User with `can_operate = true` on kit | That kit | ❌ |
+
+---
+
 ## Health Check
 
 ### GET `/health` — public

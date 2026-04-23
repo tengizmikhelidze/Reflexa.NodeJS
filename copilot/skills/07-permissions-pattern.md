@@ -156,4 +156,38 @@ async doProtectedAction(orgId: string, ..., actor: AuthUser) {
 | `app.organization_memberships` | User ↔ org relationship (status, joined_at, left_at) |
 | `app.organization_membership_roles` | Many-to-many: which roles a membership has |
 | `app.user_permission_grants` | Direct per-user permission grants (bypasses role system) |
+| `app.device_kit_user_access` | Kit-level access grants: can_operate, can_manage |
+
+---
+
+## Device Kit Access Model (Devices Module)
+
+Device kits have a secondary, kit-scoped access layer on top of org permissions.
+
+```
+Can MANAGE a kit (hub, pods, access, reassign):
+  actor.isSuperAdmin                           → YES
+  org-level devices.manage                     → YES (all kits in that org)
+  device_kit_user_access.can_manage = true     → YES (that kit only)
+
+Can VIEW a kit (list, detail, pods):
+  actor.isSuperAdmin                           → YES
+  org-level devices.manage                     → YES
+  active org membership (any role)             → YES (org's kits)
+  device_kit_user_access.can_operate = true    → YES (that kit only)
+  device_kit_user_access.can_manage  = true    → YES (that kit only)
+```
+
+Access helpers live in `devices.service.ts` — NOT route middleware — because they need the loaded kit object:
+
+```typescript
+// In DevicesService
+private async requireKitManageAccess(kit: DeviceKitRow, actor: AuthUser): Promise<void>
+private async requireKitViewAccess(kit: DeviceKitRow, actor: AuthUser): Promise<void>
+private async checkOrgPermission(orgId, userId, code): Promise<boolean>  // non-throwing
+private async requireOrgPermission(orgId, actor, code): Promise<void>    // throws
+```
+
+Never do kit access checks in controllers or route middleware.
+
 

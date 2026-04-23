@@ -1,0 +1,220 @@
+{
+  "info": {
+    "name": "Reflexa API",
+    "description": "Postman collection for Reflexa backend (auth + organizations + health). Import into Postman.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:3000/api" },
+    { "key": "testUserEmail", "value": "alex@example.com" },
+    { "key": "testUserPassword", "value": "Secret1234" },
+    { "key": "accessToken", "value": "" },
+    { "key": "refreshToken", "value": "" },
+    { "key": "organizationId", "value": "" },
+    { "key": "membershipId", "value": "" },
+    { "key": "emailVerificationToken", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "Auth / Register",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "url": { "raw": "{{baseUrl}}/auth/register", "host": ["{{baseUrl}}"], "path": ["auth","register"] },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"{{testUserEmail}}\",\n  \"password\": \"{{testUserPassword}}\",\n  \"firstName\": \"Alex\",\n  \"lastName\": \"Smith\"\n}"
+        }
+      }
+    },
+    {
+      "name": "Auth / Login",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "url": { "raw": "{{baseUrl}}/auth/login", "host": ["{{baseUrl}}"], "path": ["auth","login"] },
+        "body": { "mode": "raw", "raw": "{\n  \"email\": \"{{testUserEmail}}\",\n  \"password\": \"{{testUserPassword}}\"\n}" }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const json = pm.response.json();",
+              "if (json && json.success && json.data && json.data.tokens) {",
+              "  pm.environment.set('accessToken', json.data.tokens.accessToken);",
+              "  pm.environment.set('refreshToken', json.data.tokens.refreshToken);",
+              "  console.log('Tokens saved to environment');",
+              "} else {",
+              "  console.warn('Login response did not contain tokens');",
+              "}"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Auth / Verify Email (use token from DB or env)",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "url": { "raw": "{{baseUrl}}/auth/verify-email", "host": ["{{baseUrl}}"], "path": ["auth","verify-email"] },
+        "body": { "mode": "raw", "raw": "{\n  \"token\": \"{{emailVerificationToken}}\"\n}" }
+      }
+    },
+    {
+      "name": "Auth / Refresh Token",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "url": { "raw": "{{baseUrl}}/auth/refresh-token", "host": ["{{baseUrl}}"], "path": ["auth","refresh-token"] },
+        "body": { "mode": "raw", "raw": "{\n  \"refreshToken\": \"{{refreshToken}}\"\n}" }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const json = pm.response.json();",
+              "if (json && json.success && json.data && json.data.tokens) {",
+              "  pm.environment.set('accessToken', json.data.tokens.accessToken);",
+              "  pm.environment.set('refreshToken', json.data.tokens.refreshToken);",
+              "  console.log('Refreshed tokens saved');",
+              "}"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Auth / Logout",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "url": { "raw": "{{baseUrl}}/auth/logout", "host": ["{{baseUrl}}"], "path": ["auth","logout"] },
+        "body": { "mode": "raw", "raw": "{\n  \"refreshToken\": \"{{refreshToken}}\"\n}" }
+      }
+    },
+    {
+      "name": "Auth / Me",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+        ],
+        "url": { "raw": "{{baseUrl}}/auth/me", "host": ["{{baseUrl}}"], "path": ["auth","me"] }
+      }
+    },
+    {
+      "name": "Orgs / Create Organization",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "url": { "raw": "{{baseUrl}}/organizations", "host": ["{{baseUrl}}"], "path": ["organizations"] },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"name\": \"Reflexa Test Org\",\n  \"slug\": \"reflexa-test-org\",\n  \"description\": \"Testing organization\"\n}"
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const json = pm.response.json();",
+              "if (json && json.success && json.data && json.data.organization) {",
+              "  pm.environment.set('organizationId', json.data.organization.id);",
+              "  console.log('organizationId saved');",
+              "}"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Orgs / List Organizations",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+        "url": { "raw": "{{baseUrl}}/organizations", "host": ["{{baseUrl}}"], "path": ["organizations"] }
+      }
+    },
+    {
+      "name": "Orgs / My Access Profile",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+        "url": { "raw": "{{baseUrl}}/organizations/{{organizationId}}/me", "host": ["{{baseUrl}}"], "path": ["organizations","{{organizationId}}","me"] }
+      }
+    },
+    {
+      "name": "Orgs / Add Member",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "url": { "raw": "{{baseUrl}}/organizations/{{organizationId}}/members", "host": ["{{baseUrl}}"], "path": ["organizations","{{organizationId}}","members"] },
+        "body": { "mode": "raw", "raw": "{\n  \"email\": \"other@example.com\",\n  \"roleCodes\": [\"ATHLETE\"]\n}" }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const json = pm.response.json();",
+              "if (json && json.success && json.data && json.data.member) {",
+              "  pm.environment.set('membershipId', json.data.member.membershipId);",
+              "  console.log('membershipId saved');",
+              "}"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Orgs / List Members",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+        "url": { "raw": "{{baseUrl}}/organizations/{{organizationId}}/members", "host": ["{{baseUrl}}"], "path": ["organizations","{{organizationId}}","members"] }
+      }
+    },
+    {
+      "name": "Orgs / Assign Roles",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "url": { "raw": "{{baseUrl}}/organizations/{{organizationId}}/members/{{membershipId}}/roles", "host": ["{{baseUrl}}"], "path": ["organizations","{{organizationId}}","members","{{membershipId}}","roles"] },
+        "body": { "mode": "raw", "raw": "{\n  \"roleCodes\": [\"TRAINER\", \"VIEWER\"]\n}" }
+      }
+    },
+    {
+      "name": "Orgs / Get Effective Permissions",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+        "url": { "raw": "{{baseUrl}}/organizations/{{organizationId}}/members/{{membershipId}}/permissions", "host": ["{{baseUrl}}"], "path": ["organizations","{{organizationId}}","members","{{membershipId}}","permissions"] }
+      }
+    },
+    {
+      "name": "Health / Check",
+      "request": {
+        "method": "GET",
+        "url": { "raw": "{{baseUrl}}/health", "host": ["{{baseUrl}}"], "path": ["health"] }
+      }
+    }
+  ]
+}
+

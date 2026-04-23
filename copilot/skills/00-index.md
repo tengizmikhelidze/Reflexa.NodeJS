@@ -22,6 +22,16 @@ Load the relevant file(s) before implementing any feature.
 
 ---
 
+## Implemented Modules
+
+| Module | Base path | Key permission |
+|--------|-----------|---------------|
+| Auth | `/api/auth` | — (public + Bearer) |
+| Organizations | `/api/organizations` | `users.manage` |
+| Devices | `/api/devices` | `devices.manage` |
+
+---
+
 ## Maintenance Rule ⚠️
 
 **Whenever any of the following change, update the relevant skill file(s) immediately:**

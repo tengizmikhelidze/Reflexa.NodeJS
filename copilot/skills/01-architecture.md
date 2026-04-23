@@ -55,14 +55,22 @@ src/
     │   ├── auth.service.ts
     │   ├── auth.controller.ts
     │   └── auth.routes.ts
-    └── organizations/
-        ├── organizations.types.ts
-        ├── organizations.validation.ts
-        ├── organizations.repository.ts
-        ├── organizations.mapper.ts
-        ├── organizations.service.ts
-        ├── organizations.controller.ts
-        └── organizations.routes.ts
+    ├── organizations/
+    │   ├── organizations.types.ts
+    │   ├── organizations.validation.ts
+    │   ├── organizations.repository.ts
+    │   ├── organizations.mapper.ts
+    │   ├── organizations.service.ts
+    │   ├── organizations.controller.ts
+    │   └── organizations.routes.ts
+    └── devices/
+        ├── devices.types.ts       # DB row types + request/response interfaces
+        ├── devices.validation.ts  # Zod schemas for body + path params
+        ├── devices.repository.ts  # SQL: kits, hubs, pods, pairing history, access grants
+        ├── devices.mapper.ts      # DB rows → API shapes
+        ├── devices.service.ts     # Business logic + access-check helpers
+        ├── devices.controller.ts  # Thin HTTP handlers
+        └── devices.routes.ts      # Route wiring + dependency composition
 ```
 
 ---
