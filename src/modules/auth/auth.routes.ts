@@ -12,6 +12,7 @@ import {
     loginSchema,
     verifyEmailSchema,
     refreshTokenSchema,
+    resendVerificationEmailSchema,
 } from './auth.validation.js';
 
 /**
@@ -30,11 +31,12 @@ export async function createAuthRouter(): Promise<Router> {
     const router = Router();
 
     // ── Public routes ──────────────────────────────────────────────────────────
-    router.post('/register',      validate(registerSchema),     controller.register);
-    router.post('/login',         validate(loginSchema),        controller.login);
-    router.post('/verify-email',  validate(verifyEmailSchema),  controller.verifyEmail);
-    router.post('/refresh-token', validate(refreshTokenSchema), controller.refreshToken);
-    router.post('/logout',        validate(refreshTokenSchema), controller.logout);
+    router.post('/register',             validate(registerSchema),                  controller.register);
+    router.post('/login',                validate(loginSchema),                     controller.login);
+    router.post('/resend-verification',  validate(resendVerificationEmailSchema),   controller.resendVerificationEmail);
+    router.post('/verify-email',         validate(verifyEmailSchema),               controller.verifyEmail);
+    router.post('/refresh-token',        validate(refreshTokenSchema),              controller.refreshToken);
+    router.post('/logout',               validate(refreshTokenSchema),              controller.logout);
 
     // ── Protected routes ───────────────────────────────────────────────────────
     router.get('/me', authMiddleware, controller.getMe);

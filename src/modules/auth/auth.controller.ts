@@ -7,6 +7,7 @@ import {
     LoginInput,
     VerifyEmailInput,
     RefreshTokenInput,
+    ResendVerificationEmailInput,
 } from './auth.types.js';
 
 export class AuthController {
@@ -29,6 +30,19 @@ export class AuthController {
             const input = req.body as LoginInput;
             const result = await this.authService.login(input);
             sendSuccess(res, result);
+        } catch (err) {
+            next(err);
+        }
+    };
+
+    // POST /auth/resend-verification
+    resendVerificationEmail = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+        try {
+            const input = req.body as ResendVerificationEmailInput;
+            await this.authService.resendVerificationEmail(input);
+            sendSuccess(res, {
+                message: 'If that email is registered and unverified, a new verification link has been sent.',
+            });
         } catch (err) {
             next(err);
         }

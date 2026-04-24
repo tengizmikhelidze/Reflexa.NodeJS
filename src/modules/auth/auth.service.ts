@@ -132,6 +132,42 @@ export class AuthService {
         };
     }
 
+    // ── Resend Verification Email ─────────────────────────────────────────────
+
+    /**
+     * Issues a fresh verification token and re-sends the verification email.
+     *
+     * Always responds with the same generic message regardless of whether the
+     * email exists or is already verified — prevents user enumeration.
+     */
+    async resendVerificationEmail(input: ResendVerificationEmailInput): Promise<void> {
+        const GENERIC_MESSAGE = 'If that email is registered and unverified, a new verification link has been sent.';
+
+        const user = await this.usersRepo.findByEmail(input.email);
+
+        // Silently succeed for unknown emails — don't reveal registration state
+        if (!user) return;
+
+        // Already verified — nothing to do, silently succeed
+        if (user.email_verified) return;
+
+        // Invalidate all existing pending tokens, then issue a fresh one
+        await this.authRepo.deleteUnusedVerificationTokensForUser(user.id);
+
+        const verificationToken = generateSecureToken();
+        const expiresAt = new Date(
+            Date.now() + env.emailVerificationTokenExpiresHours * 60 * 60 * 1000
+        );
+
+        await this.authRepo.createEmailVerificationToken({
+            userId: user.id,
+            token: verificationToken,
+            expiresAt,
+        });
+
+        await this.emailService.sendVerificationEmail(user.email, verificationToken);
+    }
+
     // ── Verify Email ──────────────────────────────────────────────────────────
 
     async verifyEmail(token: string): Promise<void> {
