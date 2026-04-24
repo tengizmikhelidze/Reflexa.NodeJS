@@ -55,6 +55,14 @@ export const verifyEmailSchema = z.object({
 
 export type VerifyEmailSchema = z.infer<typeof verifyEmailSchema>;
 
+// ─── Resend Verification Email ────────────────────────────────────────────────
+
+export const resendVerificationEmailSchema = z.object({
+    email: normalizedEmail,
+});
+
+export type ResendVerificationEmailSchema = z.infer<typeof resendVerificationEmailSchema>;
+
 // ─── Refresh Token ────────────────────────────────────────────────────────────
 
 export const refreshTokenSchema = z.object({

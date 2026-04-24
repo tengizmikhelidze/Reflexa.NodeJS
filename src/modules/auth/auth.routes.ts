@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { getDb } from '../../config/database.js';
 import { validate } from '../../shared/middlewares/validate.middleware.js';
 import { authMiddleware } from '../../middlewares/auth.middleware.js';
+import { EmailService } from '../../shared/services/email.service.js';
 import { UsersRepository } from '../users/users.repository.js';
 import { AuthRepository } from './auth.repository.js';
 import { AuthService } from './auth.service.js';
@@ -22,7 +23,8 @@ export async function createAuthRouter(): Promise<Router> {
 
     const usersRepo = new UsersRepository(pool);
     const authRepo = new AuthRepository(pool);
-    const authService = new AuthService(usersRepo, authRepo);
+    const emailService = new EmailService();
+    const authService = new AuthService(usersRepo, authRepo, emailService);
     const controller = new AuthController(authService);
 
     const router = Router();

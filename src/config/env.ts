@@ -32,4 +32,8 @@ export const env = {
         getEnv('EMAIL_VERIFICATION_TOKEN_EXPIRES_HOURS', '24')
     ),
     bcryptSaltRounds: Number(getEnv('BCRYPT_SALT_ROUNDS', '12')),
+
+    resendApiKey: getEnv('RESEND_API_KEY'),
+    emailFrom: getEnv('EMAIL_FROM', 'noreply@reflexa.app'),
+    appUrl: getEnv('APP_URL', 'http://localhost:3000'),
 };

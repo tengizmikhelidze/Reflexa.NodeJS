@@ -21,6 +21,10 @@ export interface RefreshTokenInput {
     refreshToken: string;
 }
 
+export interface ResendVerificationEmailInput {
+    email: string;
+}
+
 // ─── Response Payloads ────────────────────────────────────────────────────────
 
 /** Safe user data returned in auth responses. Never includes password_hash. */

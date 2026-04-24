@@ -78,6 +78,21 @@ export class AuthRepository {
     }
 
     /**
+     * Delete all unused (not yet consumed) verification tokens for a user.
+     * Called before issuing a fresh token so only one active token exists at a time.
+     */
+    async deleteUnusedVerificationTokensForUser(userId: string): Promise<void> {
+        await this.pool
+            .request()
+            .input('userId', sql.UniqueIdentifier, userId)
+            .query(`
+                DELETE FROM app.email_verification_tokens
+                WHERE user_id = @userId
+                  AND used_at IS NULL
+            `);
+    }
+
+    /**
      * Mark a verification token as used (set used_at = now).
      */
     async markEmailVerificationTokenUsed(tokenId: string): Promise<void> {

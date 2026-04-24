@@ -14,6 +14,7 @@ import {
     getTokenExpiry,
 } from '../../shared/utils/token.utils.js';
 import { AuthUser } from '../../shared/types/auth-user.types.js';
+import { EmailService } from '../../shared/services/email.service.js';
 import { UsersRepository } from '../users/users.repository.js';
 import { AuthRepository } from './auth.repository.js';
 import { mapUserToSafeUser } from './auth.mapper.js';
@@ -24,6 +25,7 @@ import {
     RefreshTokenResponse,
     RegisterInput,
     RegisterResponse,
+    ResendVerificationEmailInput,
     SafeUser,
     TokenPair,
 } from './auth.types.js';
@@ -31,7 +33,8 @@ import {
 export class AuthService {
     constructor(
         private readonly usersRepo: UsersRepository,
-        private readonly authRepo: AuthRepository
+        private readonly authRepo: AuthRepository,
+        private readonly emailService: EmailService
     ) {}
 
     // ── Register ──────────────────────────────────────────────────────────────
@@ -72,8 +75,7 @@ export class AuthService {
             expiresAt,
         });
 
-        // NOTE: Sending the verification email is out of scope here.
-        // The token is stored; an email service layer will handle delivery.
+        await this.emailService.sendVerificationEmail(newUser.email, verificationToken);
 
         return {
             user: mapUserToSafeUser(newUser),
