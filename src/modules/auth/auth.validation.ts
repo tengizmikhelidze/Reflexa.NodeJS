@@ -55,6 +55,9 @@ export const verifyEmailSchema = z.object({
 
 export type VerifyEmailSchema = z.infer<typeof verifyEmailSchema>;
 
+// Used by the GET link handler (token comes from query string, not body)
+export const verifyEmailQuerySchema = verifyEmailSchema;
+
 // ─── Resend Verification Email ────────────────────────────────────────────────
 
 export const resendVerificationEmailSchema = z.object({

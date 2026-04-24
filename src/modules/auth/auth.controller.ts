@@ -48,6 +48,17 @@ export class AuthController {
         }
     };
 
+    // GET /auth/verify-email?token=... (email link handler — returns HTML)
+    verifyEmailViaLink = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+        try {
+            const { token } = req.query as unknown as VerifyEmailInput;
+            await this.authService.verifyEmail(token);
+            res.status(200).send(verifyEmailHtml(true));
+        } catch {
+            res.status(200).send(verifyEmailHtml(false));
+        }
+    };
+
     // POST /auth/verify-email
     verifyEmail = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
         try {
@@ -93,5 +104,35 @@ export class AuthController {
             next(err);
         }
     };
+}
+
+function verifyEmailHtml(success: boolean): string {
+    const title   = success ? 'Email Verified' : 'Verification Failed';
+    const heading = success ? '✓ Email verified!' : '✗ Verification failed';
+    const message = success
+        ? 'Your email address has been confirmed. You can now log in.'
+        : 'The link is invalid, already used, or has expired. Please request a new verification email.';
+    const color   = success ? '#16a34a' : '#dc2626';
+
+    return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${title}</title>
+  <style>
+    body { font-family: sans-serif; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; background: #f9fafb; }
+    .card { background: #fff; border-radius: 12px; padding: 48px 40px; max-width: 420px; width: 100%; box-shadow: 0 4px 24px rgba(0,0,0,0.08); text-align: center; }
+    h1 { color: ${color}; font-size: 1.5rem; margin-bottom: 12px; }
+    p { color: #6b7280; line-height: 1.6; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>${heading}</h1>
+    <p>${message}</p>
+  </div>
+</body>
+</html>`;
 }
 

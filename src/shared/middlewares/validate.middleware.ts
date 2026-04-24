@@ -33,8 +33,13 @@ export function validate<T>(schema: ZodSchema<T>, target: ValidateTarget = 'body
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             (req as any).params = result.data;
         } else if (target === 'query') {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            (req as any).query = result.data;
+            // Express 5: req.query is a getter-only on the prototype — use defineProperty
+            // to create an own property that shadows it so coerced values are visible.
+            Object.defineProperty(req, 'query', {
+                value: result.data,
+                writable: true,
+                configurable: true,
+            });
         } else {
             req.body = result.data;
         }
