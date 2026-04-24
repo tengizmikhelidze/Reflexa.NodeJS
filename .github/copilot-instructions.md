@@ -181,12 +181,14 @@ interface ViewerScopeSummary {
 |---|---|---|---|
 | `POST` | `/auth/register` | `{ email, password, firstName?, lastName?, displayName? }` | `{ user: SafeUser }` + message |
 | `POST` | `/auth/login` | `{ email, password }` | `{ user: SafeUser, tokens: TokenPair }` |
+| `POST` | `/auth/resend-verification` | `{ email }` | `{ message }` — always 200, no enumeration |
 | `POST` | `/auth/verify-email` | `{ token }` | `{ message }` |
 | `POST` | `/auth/refresh-token` | `{ refreshToken }` | `{ tokens: TokenPair }` |
 | `POST` | `/auth/logout` | `{ refreshToken }` | `{ message }` |
 | `GET` | `/auth/me` 🔒 | — | `{ user: SafeUser }` |
 
-**Auth flow:** register → verify email (token from DB during dev) → login → store tokens → intercept 401 → refresh → retry.  
+**Auth flow:** register → email sent via Resend → user clicks link → verify-email → login → store tokens → intercept 401 → refresh → retry.  
+If the link expired, call `/auth/resend-verification` to get a fresh one.  
 Password rules: min 8 chars, 1 uppercase, 1 number.
 
 ---
@@ -296,9 +298,13 @@ Password rules: min 8 chars, 1 uppercase, 1 number.
 
 ---
 
-## Email Verification (Dev Only)
+## Email Verification
 
-Email delivery is not implemented. To get the verification token during development, query the database directly:
+After registration, a verification email is sent via **Resend** (`RESEND_API_KEY` in `.env`). The link in the email points to `APP_URL/auth/verify-email?token=<token>` — read the token from the query string and call `POST /auth/verify-email`.
+
+To resend the link (expired or lost), call `POST /auth/resend-verification` with `{ email }`.
+
+**Dev fallback** — if Resend is not configured locally, retrieve the token directly from the DB:
 
 ```sql
 SELECT token FROM app.email_verification_tokens

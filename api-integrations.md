@@ -159,6 +159,36 @@ Authenticate with email and password. Issues a JWT access + refresh token pair.
 
 ---
 
+### POST `/auth/resend-verification`
+
+Re-send the email verification link. Invalidates all existing unused tokens and issues a fresh one.
+
+Always returns the same generic message regardless of whether the email exists or is already verified — prevents user enumeration.
+
+**Request body**
+```typescript
+{
+  email: string;  // required, valid email
+}
+```
+
+**Response — 200**
+```typescript
+{
+  success: true;
+  data: {
+    message: "If that email is registered and unverified, a new verification link has been sent.";
+  }
+}
+```
+
+**Error cases**
+| Status | Message |
+|--------|---------|
+| 400 | Validation failed |
+
+---
+
 ### POST `/auth/verify-email`
 
 Consume a one-time email verification token. Marks the user as verified.
@@ -344,7 +374,11 @@ Access tokens expire in 15 minutes. Recommended approach:
 
 ### Email verification token
 
-The token is currently stored in the database only — **no email is sent yet**. During development, retrieve it directly:
+After `POST /auth/register`, a verification email is sent via **Resend** to the registered address. The link in the email points to `APP_URL/auth/verify-email?token=<token>` — the frontend reads the token from the query string and calls `POST /auth/verify-email`.
+
+If the link expired or was never received, call `POST /auth/resend-verification` with the user's email to issue a fresh token.
+
+**Dev fallback** — if Resend is not configured locally, retrieve the token directly from the DB:
 
 ```sql
 SELECT token
@@ -353,8 +387,6 @@ WHERE user_id = '<userId>'
   AND used_at IS NULL
 ORDER BY created_at DESC;
 ```
-
-Pass this token to `POST /auth/verify-email` to complete verification.
 
 ---
 

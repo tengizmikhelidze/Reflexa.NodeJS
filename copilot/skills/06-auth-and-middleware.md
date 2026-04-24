@@ -91,6 +91,7 @@ But `req.user` is typed as optional everywhere, so the guard is required by Type
 |-------|--------|
 | `POST /auth/register` | Public |
 | `POST /auth/login` | Public — issues tokens |
+| `POST /auth/resend-verification` | Public — user may not have a token yet |
 | `POST /auth/verify-email` | Public — consumes one-time token |
 | `POST /auth/refresh-token` | Uses refresh token, not access token — access may be expired |
 | `POST /auth/logout` | Uses refresh token to revoke session |
