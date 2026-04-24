@@ -33,7 +33,10 @@ export const env = {
     ),
     bcryptSaltRounds: Number(getEnv('BCRYPT_SALT_ROUNDS', '12')),
 
-    resendApiKey: getEnv('RESEND_API_KEY'),
-    emailFrom: getEnv('EMAIL_FROM', 'noreply@reflexa.app'),
+    smtpHost: getEnv('SMTP_HOST', 'smtp.gmail.com'),
+    smtpPort: Number(getEnv('SMTP_PORT', '587')),
+    smtpUser: getEnv('SMTP_USER'),
+    smtpPass: getEnv('SMTP_PASS'),
+    emailFrom: getEnv('EMAIL_FROM'),
     appUrl: getEnv('APP_URL', 'http://localhost:3000'),
 };

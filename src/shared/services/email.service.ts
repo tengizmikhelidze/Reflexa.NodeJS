@@ -1,13 +1,21 @@
-import { Resend } from 'resend';
+import nodemailer from 'nodemailer';
 import { env } from '../../config/env.js';
 
-const resend = new Resend(env.resendApiKey);
+const transporter = nodemailer.createTransport({
+    host: env.smtpHost,
+    port: env.smtpPort,
+    secure: false, // STARTTLS on port 587
+    auth: {
+        user: env.smtpUser,
+        pass: env.smtpPass,
+    },
+});
 
 export class EmailService {
     async sendVerificationEmail(toEmail: string, token: string): Promise<void> {
         const verificationUrl = `${env.appUrl}/auth/verify-email?token=${token}`;
 
-        await resend.emails.send({
+        await transporter.sendMail({
             from: env.emailFrom,
             to: toEmail,
             subject: 'Verify your Reflexa account',
